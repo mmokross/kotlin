@@ -5,7 +5,9 @@ fun f()
         a ->
         {
         }
+
         b -> j
+
         else ->
         {
         }
@@ -16,7 +18,9 @@ fun f()
         a ->
         {
         }
+
         b -> j
+
         else ->
         {
         }
@@ -27,7 +31,9 @@ fun f()
         a ->
         {
         }
+
         b -> j
+
         else ->
         {
         }
@@ -38,7 +44,9 @@ fun f()
         a -> //eol comment
         {
         }
+
         b -> j
+
         else -> //eol comment
         {
         }
