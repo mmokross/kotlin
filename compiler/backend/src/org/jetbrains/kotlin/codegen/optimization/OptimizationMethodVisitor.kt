@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.codegen.optimization
 
 import org.jetbrains.kotlin.codegen.TransformationMethodVisitor
+import org.jetbrains.kotlin.codegen.optimization.boxing.FastPopBackwardPropagationTransformer
 import org.jetbrains.kotlin.codegen.optimization.boxing.RedundantBoxingMethodTransformer
 import org.jetbrains.kotlin.codegen.optimization.boxing.PopBackwardPropagationTransformer
 import org.jetbrains.kotlin.codegen.optimization.common.prepareForEmitting
@@ -54,6 +55,7 @@ class OptimizationMethodVisitor(
                 RedundantCheckCastEliminationMethodTransformer(),
                 ConstantConditionEliminationMethodTransformer(),
                 RedundantBoxingMethodTransformer(),
+                FastPopBackwardPropagationTransformer(),
                 PopBackwardPropagationTransformer(),
                 DeadCodeEliminationMethodTransformer(),
                 RedundantGotoMethodTransformer(),
@@ -67,7 +69,8 @@ class OptimizationMethodVisitor(
 
         fun canBeOptimizedUsingSourceInterpreter(node: MethodNode): Boolean {
             val frameSize = node.maxLocals + node.maxStack
-            val totalFramesSizeMb = node.instructions.size().toLong() * frameSize * frameSize / (1024 * 1024)
+            val methodSize = node.instructions.size().toLong()
+            val totalFramesSizeMb = methodSize * methodSize * frameSize / (1024 * 1024)
             return totalFramesSizeMb < MEMORY_LIMIT_BY_METHOD_MB
         }
     }

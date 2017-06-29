@@ -20,8 +20,10 @@ import com.intellij.debugger.engine.DebugProcessImpl
 import com.intellij.debugger.engine.NamedMethodFilter
 import com.intellij.util.Range
 import com.sun.jdi.Location
+import org.jetbrains.kotlin.builtins.functions.FunctionInvokeDescriptor
 import org.jetbrains.kotlin.descriptors.*
 import org.jetbrains.kotlin.descriptors.CallableMemberDescriptor.Kind.*
+import org.jetbrains.kotlin.descriptors.impl.AnonymousFunctionDescriptor
 import org.jetbrains.kotlin.idea.caches.resolve.resolveToDescriptor
 import org.jetbrains.kotlin.idea.core.getDirectlyOverriddenDeclarations
 import org.jetbrains.kotlin.idea.util.application.runReadAction
@@ -33,8 +35,8 @@ import org.jetbrains.kotlin.psi.psiUtil.getParentOfTypesAndPredicate
 import org.jetbrains.kotlin.resolve.DescriptorUtils
 
 class KotlinBasicStepMethodFilter(
-        val targetDescriptor: CallableMemberDescriptor,
-        val myCallingExpressionLines: Range<Int>
+        private val targetDescriptor: CallableMemberDescriptor,
+        private val myCallingExpressionLines: Range<Int>
 ) : NamedMethodFilter {
     private val myTargetMethodName = when (targetDescriptor) {
         is ClassDescriptor, is ConstructorDescriptor -> "<init>"
@@ -50,7 +52,7 @@ class KotlinBasicStepMethodFilter(
         val method = location.method()
         if (myTargetMethodName != method.name()) return false
 
-        val positionManager = process.positionManager ?: return false
+        val positionManager = process.positionManager
 
         val currentDescriptor = runReadAction {
             val elementAt = positionManager.getSourcePosition(location)?.elementAt
@@ -69,6 +71,12 @@ class KotlinBasicStepMethodFilter(
         @Suppress("FoldInitializerAndIfToElvis")
         if (currentDescriptor !is CallableMemberDescriptor) return false
         if (currentDescriptor.kind != DECLARATION) return false
+
+        if (targetDescriptor is FunctionInvokeDescriptor) {
+            // There can be only one 'invoke' target at the moment so consider position as expected.
+            // Descriptors can be not-equal, say when parameter has type `(T) -> T` and lambda is `Int.() -> Int`.
+            return true
+        }
 
         if (compareDescriptors(currentDescriptor, targetDescriptor)) return true
 

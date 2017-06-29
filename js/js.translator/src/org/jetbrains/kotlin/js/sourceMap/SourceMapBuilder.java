@@ -17,13 +17,15 @@
 package org.jetbrains.kotlin.js.sourceMap;
 
 import java.io.File;
+import java.io.Reader;
+import java.util.function.Supplier;
 
 public interface SourceMapBuilder {
     void newLine();
 
     void skipLinesAtBeginning(int count);
 
-    void addMapping(String source, int sourceLine, int sourceColumn);
+    void addMapping(String source, Object identityObject, Supplier<Reader> sourceContent, int sourceLine, int sourceColumn);
 
     void processSourceInfo(Object info);
 

@@ -4157,6 +4157,12 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
             doTest(fileName);
         }
 
+        @TestMetadata("kt9532_lv10.kt")
+        public void testKt9532_lv10() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/constants/kt9532_lv10.kt");
+            doTest(fileName);
+        }
+
         @TestMetadata("long.kt")
         public void testLong() throws Exception {
             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/constants/long.kt");
@@ -5695,6 +5701,12 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
             @TestMetadata("noinlineTwoReceivers.kt")
             public void testNoinlineTwoReceivers() throws Exception {
                 String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/coroutines/suspendFunctionAsCoroutine/noinlineTwoReceivers.kt");
+                doTest(fileName);
+            }
+
+            @TestMetadata("openFunWithJava.kt")
+            public void testOpenFunWithJava() throws Exception {
+                String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/coroutines/suspendFunctionAsCoroutine/openFunWithJava.kt");
                 doTest(fileName);
             }
 
@@ -17510,6 +17522,12 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
             KotlinTestUtils.assertAllTestsPresentByMetadata(this.getClass(), new File("compiler/testData/codegen/box/strings"), Pattern.compile("^(.+)\\.kt$"), TargetBackend.JVM, true);
         }
 
+        @TestMetadata("constInStringTemplate.kt")
+        public void testConstInStringTemplate() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/strings/constInStringTemplate.kt");
+            doTest(fileName);
+        }
+
         @TestMetadata("ea35743.kt")
         public void testEa35743() throws Exception {
             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/strings/ea35743.kt");
@@ -17579,6 +17597,12 @@ public class LightAnalysisModeTestGenerated extends AbstractLightAnalysisModeTes
         @TestMetadata("multilineStringsWithTemplates.kt")
         public void testMultilineStringsWithTemplates() throws Exception {
             String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/strings/multilineStringsWithTemplates.kt");
+            doTest(fileName);
+        }
+
+        @TestMetadata("nestedConcat.kt")
+        public void testNestedConcat() throws Exception {
+            String fileName = KotlinTestUtils.navigationMetadata("compiler/testData/codegen/box/strings/nestedConcat.kt");
             doTest(fileName);
         }
 

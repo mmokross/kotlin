@@ -21,7 +21,10 @@ import com.intellij.openapi.util.io.FileUtil;
 import junit.framework.ComparisonFailure;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.kotlin.analyzer.AnalysisResult;
-import org.jetbrains.kotlin.cli.jvm.compiler.*;
+import org.jetbrains.kotlin.cli.jvm.compiler.CliLightClassGenerationSupport;
+import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles;
+import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment;
+import org.jetbrains.kotlin.cli.jvm.compiler.TopDownAnalyzerFacadeForJVM;
 import org.jetbrains.kotlin.cli.jvm.config.JvmContentRootsKt;
 import org.jetbrains.kotlin.config.CompilerConfiguration;
 import org.jetbrains.kotlin.config.ContentRootsKt;
@@ -83,6 +86,11 @@ public abstract class AbstractLoadJavaTest extends TestCaseWithTmpdir {
         );
 
         checkJavaPackage(expectedFile, binaryPackageAndContext.first, binaryPackageAndContext.second, COMPARATOR_CONFIGURATION);
+    }
+
+    @NotNull
+    protected File getExpectedFile(@NotNull String expectedFileName) {
+        return new File(expectedFileName);
     }
 
     protected void doTestCompiledJavaIncludeObjectMethods(@NotNull String javaFileName) throws Exception {
@@ -154,7 +162,7 @@ public abstract class AbstractLoadJavaTest extends TestCaseWithTmpdir {
 
         AnalysisResult result = TopDownAnalyzerFacadeForJVM.analyzeFilesWithJavaIntegration(
                 environment.getProject(), environment.getSourceFiles(), new CliLightClassGenerationSupport.NoScopeRecordCliBindingTrace(),
-                configuration, scope -> new JvmPackagePartProvider(environment, scope)
+                configuration, environment::createPackagePartProvider
         );
 
         PackageViewDescriptor packageView = result.getModuleDescriptor().getPackage(TEST_PACKAGE_FQNAME);
@@ -243,7 +251,7 @@ public abstract class AbstractLoadJavaTest extends TestCaseWithTmpdir {
                 srcFiles, compiledDir, ConfigurationKind.ALL
         );
 
-        checkJavaPackage(getTxtFile(javaFileName), javaPackageAndContext.first, javaPackageAndContext.second, configuration);
+        checkJavaPackage(getExpectedFile(javaFileName.replaceFirst("\\.java$", ".txt")), javaPackageAndContext.first, javaPackageAndContext.second, configuration);
     }
 
     @NotNull
