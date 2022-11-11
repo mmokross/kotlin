@@ -22,10 +22,11 @@ import java.lang.reflect.InvocationTargetException
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.write
 
-open class GenericReplEvaluator(val baseClasspath: Iterable<File>,
-                                val baseClassloader: ClassLoader? = Thread.currentThread().contextClassLoader,
-                                protected val fallbackScriptArgs: ScriptArgsWithTypes? = null,
-                                protected val repeatingMode: ReplRepeatingMode = ReplRepeatingMode.REPEAT_ONLY_MOST_RECENT
+open class GenericReplEvaluator(
+        val baseClasspath: Iterable<File>,
+        val baseClassloader: ClassLoader? = Thread.currentThread().contextClassLoader,
+        protected val fallbackScriptArgs: ScriptArgsWithTypes? = null,
+        protected val repeatingMode: ReplRepeatingMode = ReplRepeatingMode.REPEAT_ONLY_MOST_RECENT
 ) : ReplEvaluator {
 
     override fun createState(lock: ReentrantReadWriteLock): IReplStageState<*> = GenericReplEvaluatorState(baseClasspath, baseClassloader, lock)
@@ -74,19 +75,22 @@ open class GenericReplEvaluator(val baseClasspath: Iterable<File>,
             val useScriptArgs = currentScriptArgs?.scriptArgs
             val useScriptArgsTypes = currentScriptArgs?.scriptArgsTypes?.map { it.java }
 
-            val hasHistory = historyActor.effectiveHistory.isNotEmpty()
+            val constructorParams: Array<Class<*>> =
+                arrayOf<Class<*>>(Array<Any>::class.java) +
+                        (useScriptArgs?.mapIndexed { i, it -> useScriptArgsTypes?.getOrNull(i) ?: it?.javaClass ?: Any::class.java } ?: emptyList())
 
-            val constructorParams: Array<Class<*>> = (if (hasHistory) arrayOf<Class<*>>(Array<Any>::class.java) else emptyArray<Class<*>>()) +
-                                                     (useScriptArgs?.mapIndexed { i, it -> useScriptArgsTypes?.getOrNull(i) ?: it?.javaClass ?: Any::class.java } ?: emptyList())
-
-            val constructorArgs: Array<out Any?> = if (hasHistory) arrayOf(historyActor.effectiveHistory.map { it.instance }.takeIf { it.isNotEmpty() }?.toTypedArray(),
-                                                                           *(useScriptArgs.orEmpty()))
-                                                   else useScriptArgs.orEmpty()
+            val constructorArgs: Array<out Any?> = arrayOf(
+                historyActor.effectiveHistory.map { it.instance }.takeIf { it.isNotEmpty() }?.toTypedArray(),
+                *(useScriptArgs.orEmpty())
+            )
 
             // TODO: try/catch ?
             val scriptInstanceConstructor = scriptClass.getConstructor(*constructorParams)
 
             historyActor.addPlaceholder(compileResult.lineId, EvalClassWithInstanceAndLoader(scriptClass.kotlin, null, classLoader, invokeWrapper))
+
+            val savedClassLoader = Thread.currentThread().contextClassLoader
+            Thread.currentThread().contextClassLoader = classLoader
 
             val scriptInstance =
                     try {
@@ -103,22 +107,23 @@ open class GenericReplEvaluator(val baseClasspath: Iterable<File>,
                     }
                     finally {
                         historyActor.removePlaceholder(compileResult.lineId)
+                        Thread.currentThread().contextClassLoader = savedClassLoader
                     }
 
             historyActor.addFinal(compileResult.lineId, EvalClassWithInstanceAndLoader(scriptClass.kotlin, scriptInstance, classLoader, invokeWrapper))
 
-            val resultField = scriptClass.getDeclaredField(SCRIPT_RESULT_FIELD_NAME).apply { isAccessible = true }
-            val resultValue: Any? = resultField.get(scriptInstance)
+            return if (compileResult.hasResult) {
+                val resultFieldName = scriptResultFieldName(compileResult.lineId.no)
+                val resultField = scriptClass.declaredFields.find { it.name == resultFieldName }?.apply { isAccessible = true }
+                assert(resultField != null) { "compileResult.hasResult == true but resultField is null" }
+                val resultValue: Any? = resultField!!.get(scriptInstance)
 
-            return if (compileResult.hasResult) ReplEvalResult.ValueResult(resultValue, compileResult.type)
-            else ReplEvalResult.UnitResult()
+                ReplEvalResult.ValueResult(resultFieldName, resultValue, compileResult.type)
+            } else {
+                ReplEvalResult.UnitResult()
+            }
         }
     }
-
-    companion object {
-        private val SCRIPT_RESULT_FIELD_NAME = "\$\$result"
-    }
-
 }
 
 private open class HistoryActionsForNoRepeat(val state: GenericReplEvaluatorState) {

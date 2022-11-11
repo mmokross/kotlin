@@ -19,7 +19,7 @@ package org.jetbrains.kotlin.js.resolve.diagnostics
 import com.google.gwt.dev.js.parserExceptions.AbortParsingException
 import com.google.gwt.dev.js.rhino.CodePosition
 import com.google.gwt.dev.js.rhino.ErrorReporter
-import com.google.gwt.dev.js.rhino.Utils.isEndOfLine
+import com.google.gwt.dev.js.rhino.offsetOf
 import com.intellij.openapi.util.TextRange
 import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.descriptors.CallableDescriptor
@@ -29,7 +29,7 @@ import org.jetbrains.kotlin.diagnostics.DiagnosticFactory1
 import org.jetbrains.kotlin.js.backend.ast.JsFunctionScope
 import org.jetbrains.kotlin.js.backend.ast.JsProgram
 import org.jetbrains.kotlin.js.backend.ast.JsRootScope
-import org.jetbrains.kotlin.js.parser.parse
+import org.jetbrains.kotlin.js.parser.parseExpressionOrStatement
 import org.jetbrains.kotlin.js.patterns.DescriptorPredicate
 import org.jetbrains.kotlin.js.patterns.PatternBuilder
 import org.jetbrains.kotlin.js.resolve.LEXICAL_SCOPE_FOR_JS
@@ -90,9 +90,10 @@ class JsCallChecker(
 
         try {
             val parserScope = JsFunctionScope(JsRootScope(JsProgram()), "<js fun>")
-            val statements = parse(code, errorReporter, parserScope, reportOn.containingFile?.name ?: "<unknown file>")
+            val statements = parseExpressionOrStatement(
+                    code, errorReporter, parserScope, CodePosition(0, 0), reportOn.containingFile?.name ?: "<unknown file>")
 
-            if (statements.isEmpty()) {
+            if (statements == null || statements.isEmpty()) {
                 context.trace.report(ErrorsJs.JSCODE_NO_JAVASCRIPT_PRODUCED.on(argument))
             }
         } catch (e: AbortParsingException) {
@@ -145,35 +146,6 @@ class JsCodeErrorReporter(
             val quotesLength = nodeToReport.firstChild.textLength
             return nodeToReport.textOffset + quotesLength + code.offsetOf(this)
         }
-}
-
-/**
- * Calculates an offset from the start of a text for a position,
- * defined by line and offset in that line.
- */
-private fun String.offsetOf(position: CodePosition): Int {
-    var i = 0
-    var lineCount = 0
-    var offsetInLine = 0
-
-    while (i < length) {
-        val c = this[i]
-
-        if (lineCount == position.line && offsetInLine == position.offset) {
-            return i
-        }
-
-        i++
-        offsetInLine++
-
-        if (isEndOfLine(c.toInt())) {
-            offsetInLine = 0
-            lineCount++
-            assert(lineCount <= position.line)
-        }
-    }
-
-    return length
 }
 
 private val KtExpression.isConstantStringLiteral: Boolean

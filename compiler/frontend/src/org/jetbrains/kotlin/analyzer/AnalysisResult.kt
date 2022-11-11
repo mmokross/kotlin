@@ -18,15 +18,14 @@ package org.jetbrains.kotlin.analyzer
 
 import org.jetbrains.kotlin.descriptors.ModuleDescriptor
 import org.jetbrains.kotlin.resolve.BindingContext
-import org.jetbrains.kotlin.types.ErrorUtils
+import org.jetbrains.kotlin.types.error.ErrorUtils
 import java.io.File
 
 open class AnalysisResult protected constructor(
-        val bindingContext: BindingContext,
-        val moduleDescriptor: ModuleDescriptor,
-        val shouldGenerateCode: Boolean = true
+    val bindingContext: BindingContext,
+    val moduleDescriptor: ModuleDescriptor,
+    val shouldGenerateCode: Boolean = true
 ) {
-
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         return (other is AnalysisResult && bindingContext == other.bindingContext &&
@@ -48,38 +47,54 @@ open class AnalysisResult protected constructor(
     operator fun component3() = shouldGenerateCode
 
     val error: Throwable
-        get() = if (this is Error) this.exception else throw IllegalStateException("Should only be called for error analysis result")
+        get() = if (this is InternalError) this.exception else throw IllegalStateException("Should only be called for error analysis result")
 
-    fun isError(): Boolean = this is Error
+    fun isError(): Boolean = this is InternalError || this is CompilationError
 
     fun throwIfError() {
-        if (isError()) {
-            throw IllegalStateException("failed to analyze: " + error, error)
+        when (this) {
+            is InternalError -> throw IllegalStateException("failed to analyze: $error", error)
+            is CompilationError -> throw CompilationErrorException()
         }
     }
 
-    private class Error(bindingContext: BindingContext, val exception: Throwable) : AnalysisResult(bindingContext, ErrorUtils.getErrorModule())
-    
-    class RetryWithAdditionalJavaRoots(
-            bindingContext: BindingContext, 
-            moduleDescriptor: ModuleDescriptor, 
-            val additionalJavaRoots: List<File>,
-            val addToEnvironment: Boolean = true
+    private class CompilationError(bindingContext: BindingContext) : AnalysisResult(bindingContext, ErrorUtils.errorModule)
+
+    private class InternalError(
+        bindingContext: BindingContext,
+        val exception: Throwable
+    ) : AnalysisResult(bindingContext, ErrorUtils.errorModule)
+
+    class RetryWithAdditionalRoots(
+        bindingContext: BindingContext,
+        moduleDescriptor: ModuleDescriptor,
+        val additionalJavaRoots: List<File>,
+        val additionalKotlinRoots: List<File>,
+        val additionalClassPathRoots: List<File> = emptyList(),
+        val addToEnvironment: Boolean = true
     ) : AnalysisResult(bindingContext, moduleDescriptor)
 
     companion object {
-        val EMPTY: AnalysisResult = success(BindingContext.EMPTY, ErrorUtils.getErrorModule())
+        val EMPTY: AnalysisResult = success(BindingContext.EMPTY, ErrorUtils.errorModule)
 
-        @JvmStatic fun success(bindingContext: BindingContext, module: ModuleDescriptor): AnalysisResult {
+        @JvmStatic
+        fun success(bindingContext: BindingContext, module: ModuleDescriptor): AnalysisResult {
             return AnalysisResult(bindingContext, module, true)
         }
 
-        @JvmStatic fun success(bindingContext: BindingContext, module: ModuleDescriptor, shouldGenerateCode: Boolean): AnalysisResult {
+        @JvmStatic
+        fun success(bindingContext: BindingContext, module: ModuleDescriptor, shouldGenerateCode: Boolean): AnalysisResult {
             return AnalysisResult(bindingContext, module, shouldGenerateCode)
         }
 
-        @JvmStatic fun error(bindingContext: BindingContext, error: Throwable): AnalysisResult {
-            return Error(bindingContext, error)
+        @JvmStatic
+        fun internalError(bindingContext: BindingContext, error: Throwable): AnalysisResult {
+            return InternalError(bindingContext, error)
+        }
+
+        @JvmStatic
+        fun compilationError(bindingContext: BindingContext): AnalysisResult {
+            return CompilationError(bindingContext)
         }
     }
 }

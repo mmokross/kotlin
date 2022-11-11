@@ -1,3 +1,8 @@
+// LAMBDAS: CLASS
+// IGNORE_BACKEND: WASM
+// WASM_MUTE_REASON: IGNORED_IN_JS
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
 // IGNORE_BACKEND: JS, NATIVE
 
@@ -10,14 +15,14 @@ fun check(expected: String, obj: Any?) {
 }
 
 fun box(): String {
-    check("() -> kotlin.Unit")
-    { -> }
-    check("() -> kotlin.Int")
-    { -> 42 }
+    check("() -> kotlin.Unit",
+          { -> })
+    check("() -> kotlin.Int",
+          { -> 42 })
     check("(kotlin.String) -> kotlin.Long",
           fun (s: String) = 42.toLong())
-    check("(kotlin.Int, kotlin.Int) -> kotlin.Unit")
-    { x: Int, y: Int -> }
+    check("(kotlin.Int, kotlin.Int) -> kotlin.Unit",
+          { x: Int, y: Int -> })
 
     check("kotlin.Int.() -> kotlin.Unit",
           fun Int.() {})

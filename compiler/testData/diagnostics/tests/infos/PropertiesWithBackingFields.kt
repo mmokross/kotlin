@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 abstract class Test() {
     abstract val x : Int
     abstract val x1 : Int get
@@ -44,9 +45,9 @@ abstract class Test() {
 
 }
 
-open class Super(<!UNUSED_PARAMETER!>i<!> : Int)
+open class Super(i : Int)
 
-class TestPCParameters(w : Int, <!UNUSED_PARAMETER!>x<!> : Int, val y : Int, var z : Int) : Super(w) {
+class TestPCParameters(w : Int, x : Int, val y : Int, var z : Int) : Super(w) {
 
   val xx = w
 

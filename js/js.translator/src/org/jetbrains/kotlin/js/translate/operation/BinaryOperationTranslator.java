@@ -36,11 +36,12 @@ import org.jetbrains.kotlin.psi.KtBinaryExpression;
 import org.jetbrains.kotlin.psi.KtExpression;
 import org.jetbrains.kotlin.psi.KtPsiUtil;
 import org.jetbrains.kotlin.resolve.bindingContextUtil.BindingContextUtilsKt;
-import org.jetbrains.kotlin.resolve.calls.callUtil.CallUtilKt;
+import org.jetbrains.kotlin.resolve.calls.util.CallUtilKt;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
 import org.jetbrains.kotlin.types.KotlinType;
 import org.jetbrains.kotlin.types.TypeUtils;
 import org.jetbrains.kotlin.types.expressions.OperatorConventions;
+import org.jetbrains.kotlin.types.typeUtil.TypeUtilsKt;
 
 import java.util.Collections;
 
@@ -99,21 +100,21 @@ public final class BinaryOperationTranslator extends AbstractTranslator {
 
     @NotNull
     private JsExpression translate() {
-        BinaryOperationIntrinsic intrinsic = getIntrinsicForExpression();
-        if (intrinsic.exists()) {
-            return applyIntrinsic(intrinsic);
+        JsExpression e = tryApplyIntrinsic();
+        if (e != null) {
+            return e;
         }
         if (operationToken == KtTokens.ELVIS) {
             return translateElvis();
         }
         if (isAssignmentOperator(operationToken)) {
-            return AssignmentTranslator.translate(expression, context());
+            return AssignmentTranslator.translate(this.expression, context());
         }
         if (isNotOverloadable()) {
             return translateAsUnOverloadableBinaryOperation();
         }
         if (isCompareToCall(operationToken, operationDescriptor)) {
-            return CompareToTranslator.translate(expression, context());
+            return CompareToTranslator.translate(this.expression, context());
         }
         if (isEquals()) {
             return translateEquals();
@@ -126,16 +127,14 @@ public final class BinaryOperationTranslator extends AbstractTranslator {
     @NotNull
     private JsExpression translateElvis() {
         KotlinType expressionType = context().bindingContext().getType(expression);
+        assert expressionType != null;
 
-        JsExpression leftExpression = TranslationUtils.boxCastIfNeeded(Translation.translateAsExpression(leftKtExpression, context()),
-                                                                       context().bindingContext().getType(leftKtExpression),
-                                                                       expressionType);
+        JsExpression leftExpression = TranslationUtils.coerce(
+                context(), Translation.translateAsExpression(leftKtExpression, context()), TypeUtilsKt.makeNullable(expressionType));
 
         JsBlock rightBlock = new JsBlock();
-        JsExpression rightExpression =
-                TranslationUtils.boxCastIfNeeded(Translation.translateAsExpression(rightKtExpression, context(), rightBlock),
-                                                 context().bindingContext().getType(rightKtExpression),
-                                                 expressionType);
+        JsExpression rightExpression = TranslationUtils.coerce(
+                context(), Translation.translateAsExpression(rightKtExpression, context(), rightBlock), expressionType);
 
         if (rightBlock.isEmpty()) {
             return TranslationUtils.notNullConditional(leftExpression, rightExpression, context());
@@ -152,32 +151,34 @@ public final class BinaryOperationTranslator extends AbstractTranslator {
         else {
             result = new JsNullLiteral();
             JsExpression testExpression = TranslationUtils.isNullCheck(leftExpression);
+            rightBlock.getStatements().add(rightExpression.makeStmt());
             ifStatement = JsAstUtils.newJsIf(testExpression, rightBlock);
         }
+        ifStatement.setSource(expression);
         context().addStatementToCurrentBlock(ifStatement);
         return result;
     }
 
-    @NotNull
-    private BinaryOperationIntrinsic getIntrinsicForExpression() {
-        return context().intrinsics().getBinaryOperationIntrinsic(expression, context());
-    }
+    @Nullable
+    private JsExpression tryApplyIntrinsic() {
+        BinaryOperationIntrinsic intrinsic =
+                context().intrinsics().getBinaryOperationIntrinsic(expression, context());
 
-    @NotNull
-    private JsExpression applyIntrinsic(@NotNull BinaryOperationIntrinsic intrinsic) {
+        if (intrinsic == null) return null;
+
         JsExpression leftExpression = Translation.translateAsExpression(leftKtExpression, context());
 
         JsBlock rightBlock = new JsBlock();
         JsExpression rightExpression = Translation.translateAsExpression(rightKtExpression, context(), rightBlock);
 
         if (rightBlock.isEmpty()) {
-            return intrinsic.apply(expression, leftExpression, rightExpression, context());
+            return intrinsic.invoke(expression, leftExpression, rightExpression, context());
         }
 
         leftExpression = context().cacheExpressionIfNeeded(leftExpression);
         context().addStatementsToCurrentBlockFrom(rightBlock);
 
-        return intrinsic.apply(expression, leftExpression, rightExpression, context());
+        return intrinsic.invoke(expression, leftExpression, rightExpression, context());
     }
 
     private boolean isNotOverloadable() {
@@ -212,7 +213,7 @@ public final class BinaryOperationTranslator extends AbstractTranslator {
             if (rightExpression instanceof JsNameRef) {
                 result = rightExpression; // Reuse tmp variable
             } else {
-                result = context().declareTemporary(null).reference();
+                result = context().declareTemporary(null, rightKtExpression).reference();
                 JsExpression rightAssignment = JsAstUtils.assignment(result.deepCopy(), rightExpression).source(rightKtExpression);
                 rightBlock.getStatements().add(JsAstUtils.asSyntheticStatement(rightAssignment));
             }

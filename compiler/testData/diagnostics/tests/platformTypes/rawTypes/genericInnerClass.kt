@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 // !DIAGNOSTICS: -UNUSED_VARIABLE
 // FILE: A.java
 
@@ -5,7 +6,7 @@ import java.util.*;
 
 class A<T> {
 
-    void foo(T x)
+    void foo(T x) {}
 
     public class Inner<E> {
         Inner(E x0, T x, List<T> y) {}

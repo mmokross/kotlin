@@ -1,6 +1,11 @@
+/*
+ * Copyright 2010-2018 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
+ */
+
 package org.jetbrains.kotlin.tools.tests
 
-import org.jetbrains.kotlin.tools.*
+import kotlinx.validation.api.*
 import java.io.File
 import kotlin.test.assertEquals
 import kotlin.test.fail
@@ -37,4 +42,4 @@ private fun CharSequence.trimTrailingWhitespacesAndAddNewlineAtEOF(): String =
 
 
 private val UPPER_CASE_CHARS = Regex("[A-Z]+")
-fun String.replaceCamelCaseWithDashedLowerCase() = replace(UPPER_CASE_CHARS) { "-" + it.value.toLowerCase() }
+fun String.replaceCamelCaseWithDashedLowerCase() = replace(UPPER_CASE_CHARS) { "-" + it.value.lowercase() }

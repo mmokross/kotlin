@@ -13,12 +13,12 @@ fun <T> Wrapper<T>.baz(transform: (T) -> Unit): T = TODO()
 
 fun test() {
     takeFun<String>(::foo)
-    takeFun<String>(::<!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>fooInt<!>)
+    takeFun<String>(<!TYPE_MISMATCH!>::fooInt<!>)
 
     callFun<String, Wrapper<String>>(::createWrapper)
     callFun<Int, Wrapper<Number>>(::createWrapper)
     callFun<String, Wrapper<*>>(::createWrapper)
-    callFun<String, Wrapper<Int>>(::<!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>createWrapper<!>)
+    <!INFERRED_TYPE_VARIABLE_INTO_EMPTY_INTERSECTION_WARNING!>callFun<!><String, Wrapper<Int>>(::createWrapper)
 
     callFun<Int, Wrapper<Int>>(::createWrapper).baz(::foo)
 }

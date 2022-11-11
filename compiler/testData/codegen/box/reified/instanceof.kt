@@ -1,7 +1,9 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
 // IGNORE_BACKEND: JS
 
-// WITH_RUNTIME
+// WITH_STDLIB
 
 inline fun<reified T> isinstance(x: Any?): Boolean {
     return x is T

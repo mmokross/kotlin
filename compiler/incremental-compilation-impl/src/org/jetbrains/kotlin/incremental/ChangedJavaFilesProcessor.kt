@@ -16,49 +16,41 @@
 
 package org.jetbrains.kotlin.incremental
 
-import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
-import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
-import com.intellij.lang.java.JavaLanguage
-import com.intellij.openapi.util.Disposer
 import com.intellij.psi.PsiClass
 import com.intellij.psi.PsiFile
-import com.intellij.psi.PsiFileFactory
 import com.intellij.psi.PsiJavaFile
-import org.jetbrains.kotlin.config.CompilerConfiguration
+import org.jetbrains.kotlin.build.report.ICReporter
+import org.jetbrains.kotlin.build.report.info
+import org.jetbrains.kotlin.build.report.metrics.BuildAttribute
 import java.io.File
 import java.util.*
 
-internal class ChangedJavaFilesProcessor(private val reporter: ICReporter) {
+internal class ChangedJavaFilesProcessor(
+    private val reporter: ICReporter,
+    private val psiFileFactory: (File) -> PsiFile?
+) {
     private val allSymbols = HashSet<LookupSymbol>()
-    private val javaLang = JavaLanguage.INSTANCE
-    private val psiFileFactory: PsiFileFactory by lazy {
-        val rootDisposable = Disposer.newDisposable()
-        val configuration = CompilerConfiguration()
-        val environment = KotlinCoreEnvironment.createForProduction(rootDisposable, configuration, EnvironmentConfigFiles.JVM_CONFIG_FILES)
-        val project = environment.project
-        PsiFileFactory.getInstance(project)
-    }
 
     val allChangedSymbols: Collection<LookupSymbol>
-            get() = allSymbols
+        get() = allSymbols
 
     fun process(filesDiff: ChangedFiles.Known): ChangesEither {
         val modifiedJava = filesDiff.modified.filter(File::isJavaFile)
         val removedJava = filesDiff.removed.filter(File::isJavaFile)
 
         if (removedJava.any()) {
-            reporter.report { "Some java files are removed: [${removedJava.joinToString()}]" }
-            return ChangesEither.Unknown()
+            reporter.info { "Some java files are removed: [${removedJava.joinToString()}]" }
+            return ChangesEither.Unknown(BuildAttribute.JAVA_CHANGE_UNTRACKED_FILE_IS_REMOVED)
         }
 
         val symbols = HashSet<LookupSymbol>()
         for (javaFile in modifiedJava) {
             assert(javaFile.extension.equals("java", ignoreCase = true))
 
-            val psiFile = javaFile.psiFile()
+            val psiFile = psiFileFactory(javaFile)
             if (psiFile !is PsiJavaFile) {
-                reporter.report { "Expected PsiJavaFile, got ${psiFile?.javaClass}" }
-                return ChangesEither.Unknown()
+                reporter.info { "Expected PsiJavaFile, got ${psiFile?.javaClass}" }
+                return ChangesEither.Unknown(BuildAttribute.JAVA_CHANGE_UNEXPECTED_PSI)
             }
 
             psiFile.classes.forEach { it.addLookupSymbols(symbols) }
@@ -75,7 +67,4 @@ internal class ChangedJavaFilesProcessor(private val reporter: ICReporter) {
         fields.forEach { symbols.add(LookupSymbol(it.name.orEmpty(), fqn)) }
         innerClasses.forEach { it.addLookupSymbols(symbols) }
     }
-
-    private fun File.psiFile(): PsiFile? =
-            psiFileFactory.createFileFromText(nameWithoutExtension, javaLang, readText())
 }

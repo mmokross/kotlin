@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 521
+// EXPECTED_REACHABLE_NODES: 1293
 /*
  * Copy of JVM-backend test
  * Found at: compiler/testData/codegen/boxInline/simple/simpleEnum.1.kt
@@ -15,6 +15,8 @@ enum class MyEnum {
     }
 }
 
+// CHECK_BREAKS_COUNT: function=test1 count=0 TARGET_BACKENDS=JS_IR
+// CHECK_LABELS_COUNT: function=test1 name=$l$block count=0 TARGET_BACKENDS=JS_IR
 fun test1(): String {
     return MyEnum.K.doSmth("O")
 }

@@ -1,6 +1,5 @@
 // TARGET_BACKEND: JVM
-
-// WITH_RUNTIME
+// WITH_STDLIB
 
 import java.util.Arrays
 

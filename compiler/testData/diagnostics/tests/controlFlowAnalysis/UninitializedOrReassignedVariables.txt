@@ -61,7 +61,7 @@ package uninitialized_reassigned_variables {
 
     public final class ForwardAccessToBackingField {
         public constructor ForwardAccessToBackingField()
-        public final val a: [ERROR : Type for a]
+        public final val a: [Error type: Not found recorded type for a]
         public final val b: kotlin.Int = 1
         public final val c: kotlin.Int = 1
         public open override /*1*/ /*fake_override*/ fun equals(/*0*/ other: kotlin.Any?): kotlin.Boolean
@@ -122,7 +122,7 @@ package uninitialized_reassigned_variables {
         enum entry TALKING
 
         private constructor ProtocolState()
-        public final override /*1*/ /*fake_override*/ val name: kotlin.String
+        @kotlin.internal.IntrinsicConstEvaluation public final override /*1*/ /*fake_override*/ val name: kotlin.String
         public final override /*1*/ /*fake_override*/ val ordinal: kotlin.Int
         protected final override /*1*/ /*fake_override*/ fun clone(): kotlin.Any
         public final override /*1*/ /*fake_override*/ fun compareTo(/*0*/ other: uninitialized_reassigned_variables.ProtocolState): kotlin.Int

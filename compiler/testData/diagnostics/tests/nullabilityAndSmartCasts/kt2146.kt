@@ -25,7 +25,7 @@ fun f3(s: Int?): Int {
 fun f4(s: Int?): Int {
     return when {
         s == 4 -> <!DEBUG_INFO_SMARTCAST!>s<!>
-        s == null -> <!TYPE_MISMATCH, DEBUG_INFO_CONSTANT!>s<!>
+        s == null -> <!DEBUG_INFO_CONSTANT, TYPE_MISMATCH!>s<!>
         else -> <!DEBUG_INFO_SMARTCAST!>s<!>
     }
 }

@@ -1,4 +1,6 @@
-// EXPECTED_REACHABLE_NODES: 511
+// DONT_TARGET_EXACT_BACKEND: WASM
+// WASM_MUTE_REASON: UNSUPPORTED_JS_INTEROP
+// EXPECTED_REACHABLE_NODES: 1304
 external open class A {
     open fun f(x: Int): String = definedExternally
 

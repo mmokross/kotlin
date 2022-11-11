@@ -1,1 +1,2 @@
-fun f(x: Any) = <!UNCHECKED_CAST!>x as Array<String><!>
+// FIR_IDENTICAL
+fun f(x: Any) = x <!UNCHECKED_CAST!>as Array<String><!>

@@ -1,7 +1,10 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
 // IGNORE_BACKEND: JS
-
-// WITH_RUNTIME
+// IGNORE_BACKEND: NATIVE
+// IGNORE_BACKEND: WASM
+// WITH_STDLIB
 
 import kotlin.reflect.KCallable
 import kotlin.test.*
@@ -14,7 +17,7 @@ class M {
 fun topLevelFun() {}
 val topLevelProp = ""
 
-fun checkEquals(x: KCallable<*>, y: KCallable<*>) {
+fun <T> checkEquals(x: KCallable<T>, y: KCallable<T>) {
     assertEquals(x, y)
     assertEquals(y, x)
     assertEquals(x.hashCode(), y.hashCode())

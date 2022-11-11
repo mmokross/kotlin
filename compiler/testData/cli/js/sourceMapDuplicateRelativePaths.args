@@ -1,7 +1,8 @@
 $TESTDATA_DIR$/sourceMapDuplicatePath/
--no-stdlib
+-Xlegacy-deprecated-no-warn
+-Xuse-deprecated-legacy-compiler
 -source-map
--source-map-source-roots
+-source-map-base-dirs
 $TESTDATA_DIR$/sourceMapDuplicatePath/foo:$TESTDATA_DIR$/sourceMapDuplicatePath/bar
 -output
 $TEMP_DIR$/out.js

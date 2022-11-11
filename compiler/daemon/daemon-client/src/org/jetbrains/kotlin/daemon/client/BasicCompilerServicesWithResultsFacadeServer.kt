@@ -16,7 +16,7 @@
 
 package org.jetbrains.kotlin.daemon.client
 
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
+import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSourceLocation
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
 import org.jetbrains.kotlin.cli.common.messages.OutputMessageUtil
@@ -63,10 +63,9 @@ fun MessageCollector.reportFromDaemon(outputsCollector: ((File, List<File>) -> U
                 ReportSeverity.WARNING -> CompilerMessageSeverity.WARNING
                 ReportSeverity.INFO -> CompilerMessageSeverity.INFO
                 ReportSeverity.DEBUG -> CompilerMessageSeverity.LOGGING
-                else -> throw IllegalStateException("Unexpected compiler message report severity $severity")
             }
             if (message != null) {
-                report(compilerSeverity, message, attachment as? CompilerMessageLocation)
+                report(compilerSeverity, message, attachment as? CompilerMessageSourceLocation)
             }
             else {
                 reportUnexpected(category, severity, message, attachment)
@@ -92,7 +91,7 @@ private fun MessageCollector.reportUnexpected(category: Int, severity: Int, mess
         ReportSeverity.ERROR -> CompilerMessageSeverity.ERROR
         ReportSeverity.WARNING -> CompilerMessageSeverity.WARNING
         ReportSeverity.INFO -> CompilerMessageSeverity.INFO
-        else -> CompilerMessageSeverity.LOGGING
+        ReportSeverity.DEBUG -> CompilerMessageSeverity.LOGGING
     }
 
     report(compilerMessageSeverity, "Unexpected message: category=$category; severity=$severity; message='$message'; attachment=$attachment")

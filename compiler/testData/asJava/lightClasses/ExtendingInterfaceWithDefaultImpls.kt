@@ -1,4 +1,4 @@
-// p.B
+// p.C
 package p
 
 interface A {
@@ -7,4 +7,8 @@ interface A {
 
 interface B: A {
     fun b() = "b"
+}
+
+interface C : B {
+    fun c() = "c"
 }

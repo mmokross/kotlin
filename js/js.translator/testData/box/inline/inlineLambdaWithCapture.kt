@@ -1,7 +1,7 @@
-// EXPECTED_REACHABLE_NODES: 501
+// EXPECTED_REACHABLE_NODES: 1292
 package foo
 
-// CHECK_CONTAINS_NO_CALLS: maxBySquare except=imul
+// CHECK_CONTAINS_NO_CALLS: maxBySquare except=imul;Unit_getInstance
 
 internal data class Result(var value: Int = 0, var invocationCount: Int = 0)
 
@@ -21,6 +21,8 @@ internal inline fun maxBy(a: Array<Int>, keyFun: (Int) -> Int): Int {
     return maxVal
 }
 
+// CHECK_BREAKS_COUNT: function=maxBySquare count=0 TARGET_BACKENDS=JS_IR
+// CHECK_LABELS_COUNT: function=maxBySquare name=$l$block count=0 TARGET_BACKENDS=JS_IR
 internal fun maxBySquare(a: Array<Int>, r: Result): Result {
     var invocationCount = 0
     val maxVal = maxBy(a, { x -> invocationCount++; x * x;})

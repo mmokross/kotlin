@@ -10,15 +10,15 @@ class WithC2() : <!SUPERTYPE_NOT_INITIALIZED!>WithC1<!>
 class WithPC0() {
 }
 
-class WithPC1(<!UNUSED_PARAMETER!>a<!> : Int) {
+class WithPC1(a : Int) {
 }
 
 
-class Foo() : <!SUPERTYPE_NOT_INITIALIZED, FINAL_SUPERTYPE!>WithPC0<!>, <!SYNTAX!>this<!>() {
+class Foo() : <!FINAL_SUPERTYPE, SUPERTYPE_NOT_INITIALIZED!>WithPC0<!>, <!SYNTAX!>this<!>() {
 
 }
 
-class WithCPI_Dup(<!UNUSED_PARAMETER!>x<!> : Int) {
+class WithCPI_Dup(x : Int) {
   <!MUST_BE_INITIALIZED_OR_BE_ABSTRACT!>var x : Int<!>
 }
 

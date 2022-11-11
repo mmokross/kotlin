@@ -1,6 +1,10 @@
+// !LANGUAGE: -NestedClassesInEnumEntryShouldBeInner
+
 enum class E {
     ENTRY,
     SUBCLASS {
+        // Because of KT-45115 classes/objects inside enum entries are local in FIR
+        @Suppress("LOCAL_OBJECT_NOT_ALLOWED")
         object O {
             fun foo() = 2
         }

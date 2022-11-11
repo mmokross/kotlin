@@ -1,3 +1,9 @@
+// IGNORE_BACKEND: WASM
+// WASM_MUTE_REASON: IGNORED_IN_JS
+// !LANGUAGE: -ProperIeee754Comparisons
+// DONT_TARGET_EXACT_BACKEND: JS_IR
+// DONT_TARGET_EXACT_BACKEND: JS_IR_ES6
+
 fun equals1(a: Float, b: Float) = a == b
 
 fun equals2(a: Float?, b: Float?) = a!! == b!!
@@ -15,7 +21,9 @@ fun box(): String {
     if (!equals2(-0.0F, 0.0F)) return "fail 2"
     if (!equals3(-0.0F, 0.0F)) return "fail 3"
     if (!equals4(-0.0F, 0.0F)) return "fail 4"
-    if (!equals5(-0.0F, 0.0F)) return "fail 5"
+
+    // Smart casts behavior in 1.2
+    if (equals5(-0.0F, 0.0F)) return "fail 5"
 
     return "OK"
 }

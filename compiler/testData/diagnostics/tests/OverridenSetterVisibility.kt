@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 public interface ITest {
     public var prop : Int
         get() = 12
@@ -20,7 +21,7 @@ class Test: ATest(), ITest {
         <!CANNOT_CHANGE_ACCESS_PRIVILEGE, SETTER_VISIBILITY_INCONSISTENT_WITH_PROPERTY_VISIBILITY!>internal<!> set(value) {}
 }
 
-fun main(args: Array<String>) {
+fun main() {
     val test = Test()
     <!INVISIBLE_SETTER!>test.prop<!> = 12
 

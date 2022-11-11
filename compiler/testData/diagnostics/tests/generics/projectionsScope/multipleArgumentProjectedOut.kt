@@ -5,5 +5,5 @@ class A<T> {
 }
 
 fun test(a: A<out CharSequence>) {
-    a.<!MEMBER_PROJECTED_OUT!>foo<!>("", "")
+    a.foo(<!TYPE_MISMATCH!>""<!>, <!TYPE_MISMATCH!>""<!>)
 }

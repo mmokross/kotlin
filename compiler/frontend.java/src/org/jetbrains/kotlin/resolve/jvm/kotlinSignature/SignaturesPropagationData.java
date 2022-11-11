@@ -68,7 +68,7 @@ public class SignaturesPropagationData {
 
         superFunctions = getSuperFunctionsForMethod(method, autoMethodDescriptor, containingClass);
         modifiedValueParameters = superFunctions.isEmpty()
-                                  ? new ValueParameters(null, autoValueParameters, /* stableParameterNames = */false)
+                                  ? new ValueParameters(null, autoValueParameters, false)
                                   : modifyValueParametersAccordingToSuperMethods(autoValueParameters);
     }
 
@@ -84,16 +84,16 @@ public class SignaturesPropagationData {
                 Annotations.Companion.getEMPTY(),
                 method.getName(),
                 //TODO: what to do?
-                SourceElement.NO_SOURCE
+                SourceElement.NO_SOURCE,
+                false
         );
         autoMethodDescriptor.initialize(
-                /* receiverParameterType = */ null,
-                containingClass.getThisAsReceiverParameter(),
+                null, containingClass.getThisAsReceiverParameter(), CollectionsKt.emptyList(),
                 autoTypeParameters,
                 autoValueParameters,
                 autoReturnType,
                 Modality.OPEN,
-                Visibilities.PUBLIC
+                DescriptorVisibilities.PUBLIC
         );
         return autoMethodDescriptor;
     }
@@ -192,7 +192,7 @@ public class SignaturesPropagationData {
         Method autoSignature = null;
         boolean autoMethodContainsVararg = SignaturePropagationUtilKt.containsVarargs(autoMethodDescriptor);
         for (KotlinType supertype : containingClass.getTypeConstructor().getSupertypes()) {
-            Collection<SimpleFunctionDescriptor> superFunctionCandidates =
+            Collection<? extends SimpleFunctionDescriptor> superFunctionCandidates =
                     supertype.getMemberScope().getContributedFunctions(name, NoLookupLocation.WHEN_GET_SUPER_MEMBERS);
 
             if (!autoMethodContainsVararg && !SignaturePropagationUtilKt.containsAnyNotTrivialSignature(superFunctionCandidates)) continue;

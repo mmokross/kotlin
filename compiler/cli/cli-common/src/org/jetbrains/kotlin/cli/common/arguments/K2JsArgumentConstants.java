@@ -24,8 +24,16 @@ public interface K2JsArgumentConstants {
     String MODULE_AMD = "amd";
     String MODULE_COMMONJS = "commonjs";
     String MODULE_UMD = "umd";
+    String MODULE_ES = "es";
 
     String SOURCE_MAP_SOURCE_CONTENT_ALWAYS = "always";
     String SOURCE_MAP_SOURCE_CONTENT_NEVER = "never";
     String SOURCE_MAP_SOURCE_CONTENT_INLINING = "inlining";
+
+    String SOURCE_MAP_NAMES_POLICY_NO = "no";
+    String SOURCE_MAP_NAMES_POLICY_SIMPLE_NAMES = "simple-names";
+    String SOURCE_MAP_NAMES_POLICY_FQ_NAMES = "fully-qualified-names";
+
+    String RUNTIME_DIAGNOSTIC_LOG = "log";
+    String RUNTIME_DIAGNOSTIC_EXCEPTION = "exception";
 }

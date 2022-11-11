@@ -8,4 +8,4 @@ class C : Base {
     override fun foo(): Unit {}
 }
 
-// LAZINESS:NoLaziness
+// FIR_COMPARISON

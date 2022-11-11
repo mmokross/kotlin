@@ -17,6 +17,7 @@ package com.google.gwt.dev.js;
 
 import com.google.gwt.dev.js.parserExceptions.JsParserException;
 import com.google.gwt.dev.js.rhino.CodePosition;
+import com.google.gwt.dev.js.rhino.Comment;
 import com.google.gwt.dev.js.rhino.Node;
 import com.google.gwt.dev.js.rhino.TokenStream;
 import com.intellij.util.SmartList;
@@ -25,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.js.backend.ast.*;
 
 import java.util.ArrayList;
+import java.util.LinkedList;
 import java.util.List;
 
 public class JsAstMapper {
@@ -44,7 +46,18 @@ public class JsAstMapper {
     }
 
     private JsNode map(Node node) throws JsParserException {
-        return withLocation(mapWithoutLocation(node), node);
+        return withLocation(mapWithComments(node), node);
+    }
+
+    private JsNode mapWithComments(Node node) throws JsParserException {
+        JsNode jsNode = mapWithoutLocation(node);
+
+        if (jsNode != null) {
+            jsNode.setCommentsBeforeNode(mapComments(node.getCommentsBeforeNode()));
+            jsNode.setCommentsAfterNode(mapComments(node.getCommentsAfterNode()));
+        }
+
+        return jsNode;
     }
 
     private JsNode mapWithoutLocation(Node node) throws JsParserException {
@@ -392,9 +405,7 @@ public class JsAstMapper {
                     JsUnaryOperator.DELETE, to);
         }
         else {
-            throw createParserException(
-                    "'delete' can only operate on property names and array elements",
-                    from);
+            return new JsNullLiteral();
         }
     }
 
@@ -464,7 +475,7 @@ public class JsAstMapper {
         }
     }
 
-    private JsExpression mapExpression(Node exprNode) throws JsParserException {
+    public JsExpression mapExpression(Node exprNode) throws JsParserException {
         JsNode unknown = map(exprNode);
 
         if (unknown instanceof JsExpression) {
@@ -538,12 +549,11 @@ public class JsAstMapper {
             JsNode init = map(fromInit);
             JsExpression condition = mapOptionalExpression(fromTest);
             JsExpression increment = mapOptionalExpression(fromIncr);
-            assert (init != null);
             if (init instanceof JsVars) {
                 toFor = new JsFor((JsVars) init, condition, increment);
             }
             else {
-                assert (init instanceof JsExpression);
+                assert (init == null || init instanceof JsExpression);
                 toFor = new JsFor((JsExpression) init, condition, increment);
             }
 
@@ -564,19 +574,22 @@ public class JsAstMapper {
         Node fromFnNameNode = fnNode.getFirstChild();
         Node fromParamNode = fnNode.getFirstChild().getNext().getFirstChild();
         Node fromBodyNode = fnNode.getFirstChild().getNext().getNext();
-        JsFunction toFn = scopeContext.enterFunction();
 
         // Decide the function's name, if any.
         //
         String fnNameIdent = fromFnNameNode.getString();
+        JsName functionName = null;
         if (fnNameIdent != null && fnNameIdent.length() > 0) {
-            toFn.setName(scopeContext.globalNameFor(fnNameIdent));
+            functionName = scopeContext.localNameFor(fnNameIdent);
         }
+
+        JsFunction toFn = scopeContext.enterFunction();
+        toFn.setName(functionName);
 
         while (fromParamNode != null) {
             String fromParamName = fromParamNode.getString();
             JsName name = scopeContext.localNameFor(fromParamName);
-            toFn.getParameters().add(new JsParameter(name));
+            toFn.getParameters().add(withLocation(new JsParameter(name), fromParamNode));
             fromParamNode = fromParamNode.getNext();
         }
 
@@ -1096,6 +1109,14 @@ public class JsAstMapper {
         return toVars;
     }
 
+    private JsSingleLineComment mapSingleLineComment(Node node) {
+       return new JsSingleLineComment(node.getString());
+    }
+
+    private JsMultiLineComment mapMultiLineComment(Node node) {
+        return new JsMultiLineComment(node.getString());
+    }
+
     private JsNode mapWithStatement(Node withNode) throws JsParserException {
         // The "with" statement is unsupported because it introduces ambiguity
         // related to whether or not a name is obfuscatable that we cannot resolve
@@ -1108,16 +1129,56 @@ public class JsAstMapper {
     }
 
     private <T extends JsNode> T withLocation(T astNode, Node node) {
+        if (astNode == null) return null;
+
         CodePosition location = node.getPosition();
+        switch (node.getType()) {
+            case TokenStream.FUNCTION:
+                // For functions, consider their location to be at the opening parenthesis.
+                Node c = node.getFirstChild();
+                while (c != null && c.getType() != TokenStream.LP)
+                    c = c.getNext();
+                if (c != null && c.getPosition() != null)
+                    location = c.getPosition();
+                break;
+            case TokenStream.GETPROP:
+                // For dot-qualified references, consider their position to be at the rightmost name reference.
+                location = node.getLastChild().getPosition();
+                break;
+        }
+
         if (location != null) {
-            JsLocation jsLocation = new JsLocation(fileName, location.getLine(), location.getOffset());
+            String originalName = null;
+            if (astNode instanceof JsFunction || astNode instanceof JsVars.JsVar || astNode instanceof JsParameter) {
+                JsName name = ((HasName) astNode).getName();
+                originalName = name != null ? name.toString() : null;
+            }
+            JsLocation jsLocation = new JsLocation(fileName, location.getLine(), location.getOffset(), originalName);
             if (astNode instanceof SourceInfoAwareJsNode) {
                 astNode.setSource(jsLocation);
             }
             else if (astNode instanceof JsExpressionStatement) {
-                ((JsExpressionStatement) astNode).getExpression().setSource(jsLocation);
+                JsExpression expression = ((JsExpressionStatement) astNode).getExpression();
+                if (expression.getSource() == null) {
+                    expression.setSource(jsLocation);
+                }
             }
         }
         return astNode;
+    }
+
+    private List<JsComment> mapComments(Comment comment) {
+        if (comment == null) return null;
+
+        List<JsComment> comments = new LinkedList<>();
+
+        while (comment != null) {
+            String text = comment.getText();
+            JsComment jsComment = comment.isMultiLine() ? new JsMultiLineComment(text) : new JsSingleLineComment(text);
+            comments.add(jsComment);
+            comment = comment.getNext();
+        }
+
+        return comments;
     }
 }

@@ -1,16 +1,16 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 import kotlin.test.assertEquals
 
-suspend fun suspendHere(): String = suspendCoroutineOrReturn { x ->
+suspend fun suspendHere(): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume("OK")
     COROUTINE_SUSPENDED
 }
 
-suspend fun suspendWithException(): String = suspendCoroutineOrReturn { x ->
+suspend fun suspendWithException(): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resumeWithException(RuntimeException("OK"))
     COROUTINE_SUSPENDED
 }
@@ -19,7 +19,7 @@ fun builder(shouldSuspend: Boolean, c: suspend () -> String): String {
     var fromSuspension: String? = null
 
     val result = try {
-        c.startCoroutineUninterceptedOrReturn(object: Continuation<String> {
+        c.startCoroutineUninterceptedOrReturn(object: ContinuationAdapter<String>() {
             override val context: CoroutineContext
                 get() =  EmptyCoroutineContext
 

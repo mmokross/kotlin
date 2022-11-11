@@ -20,6 +20,7 @@ import org.jetbrains.kotlin.descriptors.ValueParameterDescriptor
 import org.jetbrains.kotlin.psi.KtExpression
 import org.jetbrains.kotlin.psi.ValueArgument
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+import org.jetbrains.kotlin.types.expressions.DoubleColonLHS
 
 
 sealed class CallPosition {
@@ -28,10 +29,12 @@ sealed class CallPosition {
     class ExtensionReceiverPosition(val resolvedCall: ResolvedCall<*>) : CallPosition()
 
     class ValueArgumentPosition(
-            val resolvedCall: ResolvedCall<*>,
-            val valueParameter: ValueParameterDescriptor,
-            val valueArgument: ValueArgument
+        val resolvedCall: ResolvedCall<*>,
+        val valueParameter: ValueParameterDescriptor,
+        val valueArgument: ValueArgument
     ) : CallPosition()
 
-    class PropertyAssignment(val leftPart: KtExpression?) : CallPosition()
+    class PropertyAssignment(val leftPart: KtExpression?, val isLeft: Boolean) : CallPosition()
+
+    class CallableReferenceRhs(val lhs: DoubleColonLHS?) : CallPosition()
 }

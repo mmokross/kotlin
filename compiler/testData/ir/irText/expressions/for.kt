@@ -1,4 +1,4 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 
 fun testEmpty(ss: List<String>) {
     for (s in ss);
@@ -17,3 +17,6 @@ fun testDestructuring(pp: List<Pair<Int, String>>) {
     }
 }
 
+fun testRange() {
+    for (i in 1..10);
+}

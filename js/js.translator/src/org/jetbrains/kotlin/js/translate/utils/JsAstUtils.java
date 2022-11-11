@@ -20,17 +20,23 @@ import com.intellij.util.SmartList;
 import kotlin.Pair;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.kotlin.builtins.StandardNames;
+import org.jetbrains.kotlin.descriptors.ClassDescriptor;
 import org.jetbrains.kotlin.descriptors.SourceElement;
 import org.jetbrains.kotlin.js.backend.ast.*;
 import org.jetbrains.kotlin.js.backend.ast.metadata.MetadataProperties;
 import org.jetbrains.kotlin.js.backend.ast.metadata.SideEffectKind;
 import org.jetbrains.kotlin.js.translate.context.Namer;
-import org.jetbrains.kotlin.resolve.source.KotlinSourceElementKt;
-import org.jetbrains.kotlin.types.expressions.OperatorConventions;
+import org.jetbrains.kotlin.js.translate.context.TranslationContext;
+import org.jetbrains.kotlin.js.translate.reference.ReferenceTranslator;
+import org.jetbrains.kotlin.name.ClassId;
+import org.jetbrains.kotlin.resolve.source.PsiSourceElementKt;
 import org.jetbrains.kotlin.util.OperatorNameConventions;
 
 import java.util.Collections;
 import java.util.List;
+
+import static org.jetbrains.kotlin.descriptors.FindClassInModuleKt.findClassAcrossModuleDependencies;
 
 public final class JsAstUtils {
     private static final JsNameRef DEFINE_PROPERTY = pureFqn("defineProperty", null);
@@ -158,50 +164,6 @@ public final class JsAstUtils {
     }
 
     @NotNull
-    public static JsExpression charToBoxedChar(@NotNull JsExpression expression) {
-        return withBoxingMetadata(invokeKotlinFunction("toBoxedChar", unnestBoxing(expression)));
-    }
-
-    @NotNull
-    public static JsExpression boxedCharToChar(@NotNull JsExpression expression) {
-        return withBoxingMetadata(invokeKotlinFunction("unboxChar", unnestBoxing(expression)));
-    }
-
-    @NotNull
-    private static JsExpression unnestBoxing(@NotNull JsExpression expression) {
-        if (expression instanceof JsInvocation && MetadataProperties.getBoxing((JsInvocation) expression)) {
-            return ((JsInvocation) expression).getArguments().get(0);
-        }
-        return expression;
-    }
-
-    @NotNull
-    private static JsInvocation withBoxingMetadata(@NotNull JsInvocation call) {
-        MetadataProperties.setBoxing(call, true);
-        return call;
-    }
-
-    @NotNull
-    public static JsExpression toShort(@NotNull JsExpression expression) {
-        return invokeKotlinFunction(OperatorConventions.SHORT.getIdentifier(), expression);
-    }
-
-    @NotNull
-    public static JsExpression toByte(@NotNull JsExpression expression) {
-        return invokeKotlinFunction(OperatorConventions.BYTE.getIdentifier(), expression);
-    }
-
-    @NotNull
-    public static JsExpression toLong(@NotNull JsExpression expression) {
-        return invokeKotlinFunction(OperatorConventions.LONG.getIdentifier(), expression);
-    }
-
-    @NotNull
-    public static JsExpression toChar(@NotNull JsExpression expression) {
-        return invokeKotlinFunction(OperatorConventions.CHAR.getIdentifier(), expression);
-    }
-
-    @NotNull
     public static JsExpression compareTo(@NotNull JsExpression left, @NotNull JsExpression right) {
         return invokeKotlinFunction(OperatorNameConventions.COMPARE_TO.getIdentifier(), left, right);
     }
@@ -212,26 +174,39 @@ public final class JsAstUtils {
     }
 
     public static JsExpression newLong(long value) {
+        JsExpression result;
         if (value < Integer.MIN_VALUE || value > Integer.MAX_VALUE) {
-            int low = (int) value;
-            int high = (int) (value >> 32);
-            List<JsExpression> args = new SmartList<>();
-            args.add(new JsIntLiteral(low));
-            args.add(new JsIntLiteral(high));
-            return new JsNew(Namer.kotlinLong(), args);
+            if (value == Long.MAX_VALUE) {
+                return new JsNameRef(Namer.LONG_MAX_VALUE, Namer.kotlinLong());
+            }
+            else if (value == Long.MIN_VALUE) {
+                return new JsNameRef(Namer.LONG_MIN_VALUE, Namer.kotlinLong());
+            }
+            else {
+                int low = (int) value;
+                int high = (int) (value >> 32);
+                List<JsExpression> args = new SmartList<>();
+                args.add(new JsIntLiteral(low));
+                args.add(new JsIntLiteral(high));
+                result = new JsNew(Namer.kotlinLong(), args);
+            }
         }
         else {
             if (value == 0) {
-                return new JsNameRef(Namer.LONG_ZERO, Namer.kotlinLong());
+                result = new JsNameRef(Namer.LONG_ZERO, Namer.kotlinLong());
             }
             else if (value == 1) {
-                return new JsNameRef(Namer.LONG_ONE, Namer.kotlinLong());
+                result = new JsNameRef(Namer.LONG_ONE, Namer.kotlinLong());
             }
             else if (value == -1) {
-                return new JsNameRef(Namer.LONG_NEG_ONE, Namer.kotlinLong());
+                result = new JsNameRef(Namer.LONG_NEG_ONE, Namer.kotlinLong());
             }
-            return longFromInt(new JsIntLiteral((int) value));
+            else {
+                result = longFromInt(new JsIntLiteral((int) value));
+            }
         }
+        MetadataProperties.setSideEffects(result, SideEffectKind.PURE);
+        return result;
     }
 
     @NotNull
@@ -242,6 +217,46 @@ public final class JsAstUtils {
     @NotNull
     public static JsExpression longFromNumber(@NotNull JsExpression expression) {
         return invokeMethod(Namer.kotlinLong(), Namer.LONG_FROM_NUMBER, expression);
+    }
+
+    @NotNull
+    public static JsExpression longToNumber(@NotNull JsExpression expression) {
+        return invokeMethod(expression, Namer.LONG_TO_NUMBER);
+    }
+
+    @NotNull
+    public static JsExpression byteToUByte(byte value, @NotNull TranslationContext context) {
+        // replace with external builder
+        return toUnsignedNumber(new JsIntLiteral(value), context, StandardNames.FqNames.uByte);
+    }
+
+    @NotNull
+    public static JsExpression shortToUShort(short value, @NotNull TranslationContext context) {
+        // replace with external builder
+        return toUnsignedNumber(new JsIntLiteral(value), context, StandardNames.FqNames.uShort);
+    }
+
+    @NotNull
+    public static JsExpression intToUInt(int value, @NotNull TranslationContext context) {
+        // replace with external builder
+        return toUnsignedNumber(new JsIntLiteral(value), context, StandardNames.FqNames.uInt);
+    }
+
+    @NotNull
+    public static JsExpression longToULong(@NotNull JsExpression expression, @NotNull TranslationContext context) {
+        // replace with external builder
+        return toUnsignedNumber(expression, context, StandardNames.FqNames.uLong);
+    }
+
+    private static JsExpression toUnsignedNumber(
+            @NotNull JsExpression expression,
+            @NotNull TranslationContext context,
+            @NotNull ClassId unsignedClassId
+    ) {
+        ClassDescriptor classDescriptor = findClassAcrossModuleDependencies(context.getCurrentModule(), unsignedClassId);
+        assert classDescriptor != null : "Class descriptor is null for " + unsignedClassId;
+
+        return new JsNew(ReferenceTranslator.translateAsTypeReference(classDescriptor, context), Collections.singletonList(expression));
     }
 
     @NotNull
@@ -352,7 +367,7 @@ public final class JsAstUtils {
 
     @NotNull
     public static JsStatement assignmentToThisField(@NotNull String fieldName, @NotNull JsExpression right) {
-        return assignment(new JsNameRef(fieldName, new JsThisRef()), right).makeStmt();
+        return assignment(new JsNameRef(fieldName, new JsThisRef()), right).source(right.getSource()).makeStmt();
     }
 
     public static JsStatement asSyntheticStatement(@NotNull JsExpression expression) {
@@ -433,9 +448,9 @@ public final class JsAstUtils {
         if (expressions.size() == 1) {
             return expressions.get(0);
         }
-        JsExpression result = expressions.get(expressions.size() - 1);
-        for (int i = expressions.size() - 2; i >= 0; i--) {
-            result = new JsBinaryOperation(JsBinaryOperator.COMMA, expressions.get(i), result);
+        JsExpression result = expressions.get(0);
+        for (int i = 1; i < expressions.size(); i++) {
+            result = new JsBinaryOperation(JsBinaryOperator.COMMA, result, expressions.get(i));
         }
         return result;
     }
@@ -468,10 +483,10 @@ public final class JsAstUtils {
     }
 
     @NotNull
-    public static JsStatement defineSimpleProperty(@NotNull String name, @NotNull JsExpression value, @Nullable SourceElement source) {
+    public static JsStatement defineSimpleProperty(@NotNull JsName name, @NotNull JsExpression value, @Nullable SourceElement source) {
         JsExpression assignment = assignment(new JsNameRef(name, new JsThisRef()), value);
         if (source != null) {
-            assignment.setSource(KotlinSourceElementKt.getPsi(source));
+            assignment.setSource(PsiSourceElementKt.getPsi(source));
         }
         return assignment.makeStmt();
     }
@@ -492,26 +507,6 @@ public final class JsAstUtils {
     @NotNull
     public static JsObjectLiteral wrapValue(@NotNull JsExpression label, @NotNull JsExpression value) {
         return new JsObjectLiteral(Collections.singletonList(new JsPropertyInitializer(label, value)));
-    }
-
-    public static JsExpression replaceRootReference(@NotNull JsNameRef fullQualifier, @NotNull JsExpression newQualifier) {
-        if (fullQualifier.getQualifier() == null) {
-            assert Namer.getRootPackageName().equals(fullQualifier.getIdent()) : "Expected root package, but: " + fullQualifier.getIdent();
-            return newQualifier;
-        }
-
-        fullQualifier = fullQualifier.deepCopy();
-        JsNameRef qualifier = fullQualifier;
-        while (true) {
-            JsExpression parent = qualifier.getQualifier();
-            assert parent instanceof JsNameRef : "unexpected qualifier: " + parent + ", original: " + fullQualifier;
-            if (((JsNameRef) parent).getQualifier() == null) {
-                assert Namer.getRootPackageName().equals(((JsNameRef) parent).getIdent());
-                qualifier.setQualifier(newQualifier);
-                return fullQualifier;
-            }
-            qualifier = (JsNameRef) parent;
-        }
     }
 
     @NotNull
@@ -567,7 +562,7 @@ public final class JsAstUtils {
 
     @NotNull
     public static JsExpression stateMachineReceiver() {
-        JsNameRef result = new JsNameRef("$this$");
+        JsNameRef result = pureFqn("$this$", null);
         MetadataProperties.setCoroutineReceiver(result, true);
         return result;
     }

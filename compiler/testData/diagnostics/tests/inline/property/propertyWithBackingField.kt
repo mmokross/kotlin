@@ -1,4 +1,6 @@
+// FIR_IDENTICAL
 // WITH_REFLECT
+// WITH_STDLIB
 
 import kotlin.reflect.KProperty
 

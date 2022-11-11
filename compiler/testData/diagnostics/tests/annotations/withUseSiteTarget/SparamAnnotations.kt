@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 import kotlin.reflect.KProperty
 
 annotation class Ann
@@ -33,7 +34,7 @@ class SomeClass {
     <!INAPPLICABLE_TARGET_ON_PROPERTY!>@setparam:Ann<!>
     fun anotherFun() {
         <!INAPPLICABLE_TARGET_ON_PROPERTY!>@setparam:Ann<!>
-        val <!UNUSED_VARIABLE!>localVariable<!> = 5
+        val localVariable = 5
     }
 
 }

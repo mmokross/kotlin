@@ -1,3 +1,4 @@
+// JAVAC_EXPECTED_FILE
 // See also KT-10735
 fun test() {
     var a: Int?
@@ -53,7 +54,7 @@ fun test4() {
 fun test5() {
     var a: Int?// = null
     try {
-        <!UNUSED_VALUE!>a =<!> 3
+        a = 3
     }
     catch (e: Exception) {
         return
@@ -66,7 +67,7 @@ fun test5() {
 fun test6() {
     var a: Int?// = null
     try {
-        <!UNUSED_VALUE!>a =<!> 3
+        a = 3
     }
     catch (e: Exception) {
         return
@@ -74,5 +75,5 @@ fun test6() {
     finally {
         a = null
     }
-    <!DEBUG_INFO_CONSTANT!>a<!><!UNSAFE_CALL!>.<!>hashCode() // a is null here
+    a<!UNSAFE_CALL!>.<!>hashCode() // a is null here
 }

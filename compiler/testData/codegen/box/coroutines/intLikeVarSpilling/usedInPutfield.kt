@@ -1,12 +1,12 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
 // TARGET_BACKEND: JVM
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class Controller {
-    suspend fun suspendHere(): Unit = suspendCoroutineOrReturn { x ->
+    suspend fun suspendHere(): Unit = suspendCoroutineUninterceptedOrReturn { x ->
         x.resume(Unit)
         COROUTINE_SUSPENDED
     }

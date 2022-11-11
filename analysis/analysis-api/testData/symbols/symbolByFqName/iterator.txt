@@ -1,0 +1,24 @@
+KtNamedClassOrObjectSymbol:
+  annotationsList: []
+  classIdIfNonLocal: kotlin/collections/Iterator
+  classKind: INTERFACE
+  companionObject: null
+  contextReceivers: []
+  isData: false
+  isExternal: false
+  isFun: false
+  isInline: false
+  isInner: false
+  modality: ABSTRACT
+  name: Iterator
+  origin: LIBRARY
+  superTypes: [
+    kotlin/Any
+  ]
+  symbolKind: TOP_LEVEL
+  typeParameters: [
+    KtTypeParameterSymbol(T)
+  ]
+  visibility: Public
+  getContainingModule: KtBinaryModule "Builtins for JVM (1.8)"
+  deprecationStatus: null

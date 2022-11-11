@@ -1,3 +1,5 @@
+// NI_EXPECTED_FILE
+
 fun test() = 3
 
 fun <T> proxy(t: T) = t
@@ -11,6 +13,6 @@ class B {
 }
 
 class C {
-    val bar = <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!><!UNINITIALIZED_VARIABLE!>test<!>()<!>
-    val test = <!FUNCTION_EXPECTED!>bar<!>()
+    val bar = <!DEBUG_INFO_MISSING_UNRESOLVED!>test<!>()
+    val test = <!TYPECHECKER_HAS_RUN_INTO_RECURSIVE_PROBLEM_ERROR!><!DEBUG_INFO_MISSING_UNRESOLVED!>bar<!>()<!>
 }

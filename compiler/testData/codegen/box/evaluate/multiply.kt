@@ -1,7 +1,8 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// !LANGUAGE: -ApproximateIntegerLiteralTypesInReceiverPosition
+// IGNORE_BACKEND_FIR: JVM_IR
+// TARGET_BACKEND: JVM
 
-// WITH_RUNTIME
+// WITH_STDLIB
 
 @Retention(AnnotationRetention.RUNTIME)
 annotation class Ann(

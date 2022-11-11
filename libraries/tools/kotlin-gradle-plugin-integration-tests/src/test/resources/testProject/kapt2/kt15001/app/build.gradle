@@ -4,7 +4,6 @@ apply plugin: 'kotlin-kapt'
 
 android {
     compileSdkVersion 23
-    buildToolsVersion "25.0.2"
 
     defaultConfig {
         applicationId "com.example.kt15001"
@@ -12,6 +11,12 @@ android {
         targetSdkVersion 23
         versionCode 1
         versionName "1.0"
+    }
+
+    // Needed for older AGP. It can be removed when the lowest supported AGP version is 4.2.0 or newer.
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
     }
     
     buildTypes {
@@ -23,11 +28,12 @@ android {
 }
 
 dependencies {
-    compile fileTree(dir: 'libs', include: ['*.jar'])
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation fileTree(dir: 'libs', include: ['*.jar'])
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 
-    compile 'com.google.dagger:dagger:2.8'
+    implementation 'com.google.dagger:dagger:2.8'
     kapt 'com.google.dagger:dagger-compiler:2.8'
+    kapt 'javax.annotation:javax.annotation-api:1.3.2'
 
-    compile 'com.android.support:appcompat-v7:23.3.0'
+    implementation 'com.android.support:appcompat-v7:23.3.0'
 }

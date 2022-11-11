@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.jetbrains.kotlin</groupId>
         <artifactId>kotlin-project</artifactId>
-        <version>1.1-SNAPSHOT</version>
+        <version>1.8.255-SNAPSHOT</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -65,6 +65,11 @@
                         <goals>
                             <goal>js</goal>
                         </goals>
+                        <configuration>
+                            <args>
+                                <arg>-Xuse-deprecated-legacy-compiler</arg>
+                            </args>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>test-compile</id>
@@ -104,7 +109,7 @@
             <plugin>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <jvm>${env.JDK_18}/bin/java</jvm>
+                    <jvm>${jdk_1_8}/bin/java</jvm>
                 </configuration>
             </plugin>
 
@@ -162,7 +167,7 @@
                 <repository>
                   <id>snapshots.fusesource.org</id>
                   <name>FuseSource Snapshots Repository</name>
-                  <url>http://repo.fusesource.com/nexus/content/repositories/snapshots</url>
+                  <url>https://repo.fusesource.com/nexus/content/repositories/snapshots</url>
                   <snapshots>
                     <enabled>false</enabled>
                   </snapshots>

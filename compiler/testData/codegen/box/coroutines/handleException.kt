@@ -1,14 +1,14 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class Controller {
     var exception: Throwable? = null
     val postponedActions = ArrayList<() -> Unit>()
 
-    suspend fun suspendWithValue(v: String): String = suspendCoroutineOrReturn { x ->
+    suspend fun suspendWithValue(v: String): String = suspendCoroutineUninterceptedOrReturn { x ->
         postponedActions.add {
             x.resume(v)
         }
@@ -16,7 +16,7 @@ class Controller {
         COROUTINE_SUSPENDED
     }
 
-    suspend fun suspendWithException(e: Exception): String = suspendCoroutineOrReturn { x ->
+    suspend fun suspendWithException(e: Exception): String = suspendCoroutineUninterceptedOrReturn { x ->
         postponedActions.add {
             x.resumeWithException(e)
         }

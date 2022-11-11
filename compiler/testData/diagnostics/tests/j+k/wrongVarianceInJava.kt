@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 // !CHECK_TYPE
 // !DIAGNOSTICS: -UNUSED_PARAMETER
 // FILE: A.java
@@ -19,5 +20,5 @@ class In<in F> {
 
 fun test() {
     A.foo().x() checkType { _<Any?>() }
-    A.bar().<!MEMBER_PROJECTED_OUT!>y<!>(null)
+    A.bar().y(<!NULL_FOR_NONNULL_TYPE!>null<!>)
 }

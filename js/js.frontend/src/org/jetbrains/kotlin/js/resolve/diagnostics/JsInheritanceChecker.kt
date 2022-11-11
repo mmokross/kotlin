@@ -17,44 +17,37 @@
 package org.jetbrains.kotlin.js.resolve.diagnostics
 
 import org.jetbrains.kotlin.builtins.isBuiltinFunctionalTypeOrSubtype
+import org.jetbrains.kotlin.builtins.isSuspendFunctionTypeOrSubtype
 import org.jetbrains.kotlin.descriptors.ClassDescriptor
 import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.descriptors.Modality
-import org.jetbrains.kotlin.diagnostics.DiagnosticSink
 import org.jetbrains.kotlin.psi.KtClassOrObject
 import org.jetbrains.kotlin.psi.KtDeclaration
-import org.jetbrains.kotlin.resolve.BindingContext
-import org.jetbrains.kotlin.resolve.checkers.SimpleDeclarationChecker
-import org.jetbrains.kotlin.resolve.descriptorUtil.hasDefaultValue
+import org.jetbrains.kotlin.resolve.calls.components.hasDefaultValue
+import org.jetbrains.kotlin.resolve.checkers.DeclarationChecker
+import org.jetbrains.kotlin.resolve.checkers.DeclarationCheckerContext
 import org.jetbrains.kotlin.resolve.descriptorUtil.isEffectivelyExternal
 import org.jetbrains.kotlin.resolve.scopes.DescriptorKindFilter
 import org.jetbrains.kotlin.types.typeUtil.immediateSupertypes
 
-object JsInheritanceChecker : SimpleDeclarationChecker {
-    override fun check(
-            declaration: KtDeclaration,
-            descriptor: DeclarationDescriptor,
-            diagnosticHolder: DiagnosticSink,
-            bindingContext: BindingContext
-    ) {
+object JsInheritanceChecker : DeclarationChecker {
+    override fun check(declaration: KtDeclaration, descriptor: DeclarationDescriptor, context: DeclarationCheckerContext) {
         if (descriptor is FunctionDescriptor && !descriptor.isEffectivelyExternal() &&
             isOverridingExternalWithOptionalParams(descriptor)
         ) {
-            diagnosticHolder.report(ErrorsJs.OVERRIDING_EXTERNAL_FUN_WITH_OPTIONAL_PARAMS.on(declaration))
-        }
-        else if (descriptor is ClassDescriptor && !descriptor.isEffectivelyExternal()) {
+            context.trace.report(ErrorsJs.OVERRIDING_EXTERNAL_FUN_WITH_OPTIONAL_PARAMS.on(declaration))
+        } else if (descriptor is ClassDescriptor && !descriptor.isEffectivelyExternal()) {
             val fakeOverriddenMethod = findFakeMethodOverridingExternalWithOptionalParams(descriptor)
             if (fakeOverriddenMethod != null) {
-                diagnosticHolder.report(ErrorsJs.OVERRIDING_EXTERNAL_FUN_WITH_OPTIONAL_PARAMS_WITH_FAKE.on(
-                        declaration, fakeOverriddenMethod))
+                context.trace.report(ErrorsJs.OVERRIDING_EXTERNAL_FUN_WITH_OPTIONAL_PARAMS_WITH_FAKE.on(declaration, fakeOverriddenMethod))
             }
         }
 
         if (descriptor is ClassDescriptor &&
-            descriptor.defaultType.immediateSupertypes().any { it.isBuiltinFunctionalTypeOrSubtype }
+            descriptor.defaultType.immediateSupertypes().any { it.isBuiltinFunctionalTypeOrSubtype && !it.isSuspendFunctionTypeOrSubtype }
         ) {
-            diagnosticHolder.report(ErrorsJs.IMPLEMENTING_FUNCTION_INTERFACE.on(declaration as KtClassOrObject))
+            context.trace.report(ErrorsJs.IMPLEMENTING_FUNCTION_INTERFACE.on(declaration as KtClassOrObject))
         }
     }
 
@@ -70,8 +63,8 @@ object JsInheritanceChecker : SimpleDeclarationChecker {
 
     private fun findFakeMethodOverridingExternalWithOptionalParams(cls: ClassDescriptor): FunctionDescriptor? {
         val members = cls.unsubstitutedMemberScope.getContributedDescriptors(DescriptorKindFilter.CALLABLES)
-                .mapNotNull { it as? FunctionDescriptor }
-                .filter { it.containingDeclaration == cls && !it.kind.isReal && it.overriddenDescriptors.size > 1 }
+            .mapNotNull { it as? FunctionDescriptor }
+            .filter { it.containingDeclaration == cls && !it.kind.isReal && it.overriddenDescriptors.size > 1 }
 
         return members.firstOrNull { isOverridingExternalWithOptionalParams(it) }
     }

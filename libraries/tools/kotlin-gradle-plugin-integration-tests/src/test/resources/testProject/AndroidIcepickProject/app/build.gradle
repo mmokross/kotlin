@@ -1,19 +1,19 @@
 apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
+apply plugin: 'kotlin-kapt'
 
 dependencies {
-    compile "frankiesardo:icepick:3.2.0"
+    implementation "frankiesardo:icepick:3.2.0"
     kapt "frankiesardo:icepick-processor:3.2.0"
 
-    compile 'org.parceler:parceler-api:1.1.5'
+    implementation 'org.parceler:parceler-api:1.1.5'
     kapt 'org.parceler:parceler:1.1.5'
 
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
 }
 
 android {
     compileSdkVersion 23
-    buildToolsVersion "25.0.2"
 
     defaultConfig {
         applicationId "com.example.icepick.kotlin"
@@ -21,6 +21,12 @@ android {
         targetSdkVersion 23
         versionCode 1
         versionName "1.0"
+    }
+
+    // Needed for older AGP. It can be removed when the lowest supported AGP version is 4.2.0 or newer.
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
     }
 
     lintOptions {
@@ -32,14 +38,8 @@ android {
 }
 
 repositories {
-    mavenCentral()
-    maven {
-        url "https://clojars.org/repo/"
-    }
     mavenLocal()
     maven { url 'https://maven.google.com' }
-}
-
-kapt {
-    generateStubs = true
+    mavenCentral()
+    maven { url "https://clojars.org/repo/" }
 }

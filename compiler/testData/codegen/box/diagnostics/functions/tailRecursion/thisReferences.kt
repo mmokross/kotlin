@@ -1,5 +1,8 @@
+// IGNORE_BACKEND: WASM
+// WASM_MUTE_REASON: IGNORED_IN_JS
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND_WITHOUT_CHECK: JS
+// IGNORE_BACKEND: JS
 
 class A {
     tailrec fun f1(c : Int) {
@@ -14,7 +17,7 @@ class A {
         }
     }
 
-    <!NO_TAIL_CALLS_FOUND!>tailrec fun f3(a : A)<!> {
+    <!NO_TAIL_CALLS_FOUND!>tailrec<!> fun f3(a : A) {
         a.<!NON_TAIL_RECURSIVE_CALL!>f3<!>(a) // non-tail recursion, could be potentially resolved by condition if (a == this) f3() else a.f3()
     }
 }

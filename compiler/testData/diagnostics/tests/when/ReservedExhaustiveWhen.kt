@@ -1,3 +1,12 @@
+/*
+ * KOTLIN DIAGNOSTICS SPEC TEST (NEGATIVE)
+ *
+ * SPEC VERSION: 0.1-152
+ * PRIMARY LINKS: expressions, when-expression -> paragraph 2 -> sentence 1
+ * expressions, when-expression -> paragraph 5 -> sentence 1
+ * expressions, when-expression, exhaustive-when-expressions -> paragraph 2 -> sentence 1
+ */
+
 // !DIAGNOSTICS: -UNUSED_PARAMETER
 
 infix fun Any.sealed(a: Any?) {}
@@ -25,7 +34,7 @@ fun foo() {
         else -> {}
     })
 
-    <!UNUSED_EXPRESSION!>1<!>
+    1
     <!UNRESOLVED_REFERENCE, UNSUPPORTED!>sealed<!><!SYNTAX!><!> when {
         else -> {}
     }

@@ -16,9 +16,8 @@ interface B<R, T: B<List<R>, <!UPPER_BOUND_VIOLATED!>T<!>>> {
 }
 
 fun testB(b: B<*, *>) {
-    <!TYPE_MISMATCH(B<out Any?, out B<List<*>, *>>; B<*, *>)!>b<!>.r().checkType { _<Any?>() }
-    <!TYPE_MISMATCH(B<out Any?, out B<List<*>, *>>; B<*, *>)!>b<!>.t().checkType { _<B<List<*>, *>>() }
+    b.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>r<!>().<!DEBUG_INFO_MISSING_UNRESOLVED!>checkType<!> { <!UNRESOLVED_REFERENCE!>_<!><Any?>() }
+    b.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>t<!>().<!DEBUG_INFO_MISSING_UNRESOLVED!>checkType<!> { <!UNRESOLVED_REFERENCE!>_<!><B<List<*>, *>>() }
 
-    <!TYPE_MISMATCH(B<List<Any?>, out B<List<*>, *>>; B<List<*>, *>)!><!TYPE_MISMATCH(B<out Any?, out B<List<*>, *>>; B<*, *>)!>b<!>.t()<!>.r().size
+    b.<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>t<!>().<!DEBUG_INFO_MISSING_UNRESOLVED!>r<!>().<!DEBUG_INFO_MISSING_UNRESOLVED!>size<!>
 }
-

@@ -19,6 +19,7 @@ package org.jetbrains.kotlin.codegen.optimization
 import org.jetbrains.kotlin.codegen.inline.insnText
 import org.jetbrains.kotlin.codegen.optimization.common.OptimizationBasicInterpreter
 import org.jetbrains.kotlin.codegen.optimization.common.StrictBasicValue
+import org.jetbrains.kotlin.codegen.optimization.common.removeAll
 import org.jetbrains.kotlin.codegen.optimization.fixStack.peek
 import org.jetbrains.kotlin.codegen.optimization.fixStack.top
 import org.jetbrains.kotlin.codegen.optimization.transformer.MethodTransformer
@@ -31,14 +32,27 @@ import org.jetbrains.org.objectweb.asm.tree.analysis.BasicValue
 import org.jetbrains.org.objectweb.asm.tree.analysis.Frame
 
 class ConstantConditionEliminationMethodTransformer : MethodTransformer() {
-    private val deadCodeElimination = DeadCodeEliminationMethodTransformer()
 
     override fun transform(internalClassName: String, methodNode: MethodNode) {
+        if (!methodNode.hasOptimizableConditions()) {
+            return
+        }
         do {
             val changes = ConstantConditionsOptimization(internalClassName, methodNode).run()
-            if (changes) deadCodeElimination.transform(internalClassName, methodNode)
         } while (changes)
     }
+
+    private fun MethodNode.hasOptimizableConditions(): Boolean {
+        val insns = instructions.toArray()
+        return insns.any { it.isIntJump() } && insns.any { it.isIntConst() }
+    }
+
+    private fun AbstractInsnNode.isIntConst() =
+        opcode in Opcodes.ICONST_M1..Opcodes.ICONST_5 || opcode == Opcodes.BIPUSH || opcode == Opcodes.SIPUSH ||
+                (opcode == Opcodes.LDC && this is LdcInsnNode && cst is Int)
+
+    private fun AbstractInsnNode.isIntJump() =
+        opcode in Opcodes.IFEQ..Opcodes.IFLE || opcode in Opcodes.IF_ICMPEQ..Opcodes.IF_ICMPLE
 
     private class ConstantConditionsOptimization(val internalClassName: String, val methodNode: MethodNode) {
         fun run(): Boolean {
@@ -48,20 +62,38 @@ class ConstantConditionEliminationMethodTransformer : MethodTransformer() {
         }
 
         private fun collectRewriteActions(): List<() -> Unit> =
-                arrayListOf<() -> Unit>().also { actions ->
-                    val frames = analyze(internalClassName, methodNode, ConstantPropagationInterpreter())
-                    val insns = methodNode.instructions.toArray()
-                    for (i in frames.indices) {
-                        val frame = frames[i] ?: continue
-                        val insn = insns[i] as? JumpInsnNode ?: continue
-                        when (insn.opcode) {
-                            in Opcodes.IFEQ .. Opcodes.IFLE ->
-                                tryRewriteComparisonWithZero(insn, frame, actions)
-                            in Opcodes.IF_ICMPEQ .. Opcodes.IF_ICMPLE ->
-                                tryRewriteBinaryComparison(insn, frame, actions)
+            arrayListOf<() -> Unit>().also { actions ->
+                val deadCode = ArrayList<AbstractInsnNode>()
+
+                val frames = analyze(internalClassName, methodNode, ConstantPropagationInterpreter())
+                val insns = methodNode.instructions.toArray()
+
+                for (i in frames.indices) {
+                    val insn = insns[i]
+                    val frame = frames[i]
+
+                    if (frame == null) {
+                        if (insn !is LabelNode) {
+                            deadCode.add(insn)
                         }
+                        continue
+                    }
+
+                    if (insn !is JumpInsnNode) continue
+                    when (insn.opcode) {
+                        in Opcodes.IFEQ..Opcodes.IFLE ->
+                            tryRewriteComparisonWithZero(insn, frame, actions)
+                        in Opcodes.IF_ICMPEQ..Opcodes.IF_ICMPLE ->
+                            tryRewriteBinaryComparison(insn, frame, actions)
                     }
                 }
+
+                if (deadCode.isNotEmpty()) {
+                    actions.add {
+                        methodNode.instructions.removeAll(deadCode)
+                    }
+                }
+            }
 
         private fun tryRewriteComparisonWithZero(insn: JumpInsnNode, frame: Frame<BasicValue>, actions: ArrayList<() -> Unit>) {
             val top = frame.top()!!.safeAs<IConstValue>() ?: return
@@ -93,8 +125,7 @@ class ConstantConditionEliminationMethodTransformer : MethodTransformer() {
 
             if (arg1 is IConstValue && arg2 is IConstValue) {
                 rewriteBinaryComparisonOfConsts(insn, arg1.value, arg2.value, actions)
-            }
-            else if (arg2 is IConstValue && arg2.value == 0) {
+            } else if (arg2 is IConstValue && arg2.value == 0) {
                 rewriteBinaryComparisonWith0(insn, actions)
             }
         }
@@ -144,8 +175,8 @@ class ConstantConditionEliminationMethodTransformer : MethodTransformer() {
 
     private class IConstValue private constructor(val value: Int) : StrictBasicValue(Type.INT_TYPE) {
         override fun equals(other: Any?): Boolean =
-                other === this ||
-                other is IConstValue && other.value == this.value
+            other === this ||
+                    other is IConstValue && other.value == this.value
 
         override fun hashCode(): Int = value
 
@@ -155,34 +186,34 @@ class ConstantConditionEliminationMethodTransformer : MethodTransformer() {
             private val ICONST_CACHE = Array(7) { IConstValue(it - 1) }
 
             fun of(value: Int) =
-                    if (value in -1 .. 5)
-                        ICONST_CACHE[value + 1]
-                    else
-                        IConstValue(value)
+                if (value in -1..5)
+                    ICONST_CACHE[value + 1]
+                else
+                    IConstValue(value)
         }
     }
 
     private class ConstantPropagationInterpreter : OptimizationBasicInterpreter() {
         override fun newOperation(insn: AbstractInsnNode): BasicValue =
-                when (insn.opcode) {
-                    in Opcodes.ICONST_M1 .. Opcodes.ICONST_5 ->
-                        IConstValue.of(insn.opcode - Opcodes.ICONST_0)
-                    Opcodes.BIPUSH, Opcodes.SIPUSH ->
-                        IConstValue.of(insn.cast<IntInsnNode>().operand)
-                    Opcodes.LDC -> {
-                        val operand = insn.cast<LdcInsnNode>().cst
-                        if (operand is Int)
-                            IConstValue.of(operand)
-                        else
-                            super.newOperation(insn)
-                    }
-                    else -> super.newOperation(insn)
+            when (insn.opcode) {
+                in Opcodes.ICONST_M1..Opcodes.ICONST_5 ->
+                    IConstValue.of(insn.opcode - Opcodes.ICONST_0)
+                Opcodes.BIPUSH, Opcodes.SIPUSH ->
+                    IConstValue.of(insn.cast<IntInsnNode>().operand)
+                Opcodes.LDC -> {
+                    val operand = insn.cast<LdcInsnNode>().cst
+                    if (operand is Int)
+                        IConstValue.of(operand)
+                    else
+                        super.newOperation(insn)
                 }
+                else -> super.newOperation(insn)
+            }
 
         override fun merge(v: BasicValue, w: BasicValue): BasicValue =
-                if (v is IConstValue && w is IConstValue && v == w)
-                    v
-                else
-                    super.merge(v, w)
+            if (v is IConstValue && w is IConstValue && v == w)
+                v
+            else
+                super.merge(v, w)
     }
 }

@@ -1,7 +1,7 @@
-// EXPECTED_REACHABLE_NODES: 506
+// EXPECTED_REACHABLE_NODES: 1296
 package foo
 
-// CHECK_CONTAINS_NO_CALLS: add
+// CHECK_CONTAINS_NO_CALLS: myAdd
 
 internal data class IntPair(public var fst: Int, public var snd: Int) {
     inline public fun getFst(): Int { return fst }
@@ -11,7 +11,9 @@ internal data class IntPair(public var fst: Int, public var snd: Int) {
     inline public fun setSnd(v: Int) { this.snd = v }
 }
 
-internal fun add(p: IntPair, toFst: Int, toSnd: Int) {
+// CHECK_BREAKS_COUNT: function=myAdd count=0 TARGET_BACKENDS=JS_IR
+// CHECK_LABELS_COUNT: function=myAdd name=$l$block count=0 TARGET_BACKENDS=JS_IR
+internal fun myAdd(p: IntPair, toFst: Int, toSnd: Int) {
     val fst = p.getFst()
     p.setFst(fst + toFst)
 
@@ -21,7 +23,7 @@ internal fun add(p: IntPair, toFst: Int, toSnd: Int) {
 
 fun box(): String {
     val p = IntPair(0, 0)
-    add(p, 1, 2)
+    myAdd(p, 1, 2)
     assertEquals(IntPair(1, 2), p)
 
     return "OK"

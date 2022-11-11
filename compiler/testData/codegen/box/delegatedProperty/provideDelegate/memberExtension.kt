@@ -1,4 +1,5 @@
-// WITH_RUNTIME
+// IGNORE_BACKEND: WASM
+// WITH_STDLIB
 
 object Host {
     class StringDelegate(val s: String) {

@@ -6,11 +6,11 @@ fun <E> foo(x: Any, y: Any) : Any {
     }
 
     if (1 == 2) {
-        <!UNCHECKED_CAST!>x as C<!>
+        x <!UNCHECKED_CAST!>as C<!>
     }
 
     if (2 == 3) {
-        <!UNCHECKED_CAST!>x as? C<!>
+        x <!UNCHECKED_CAST!>as? C<!>
     }
 
     class Outer<F> {
@@ -22,7 +22,12 @@ fun <E> foo(x: Any, y: Any) : Any {
         return y
     }
 
-    <!UNCHECKED_CAST!>y as Outer<*>.Inner<!>
+    if (y is <!CANNOT_CHECK_FOR_ERASED!>Outer<*>.Inner<!>) {
+        return y
+    }
+
+    y <!UNCHECKED_CAST!>as Outer<*>.Inner<!>
+    y <!USELESS_CAST!>as <!NO_TYPE_ARGUMENTS_ON_RHS!>Outer.Inner<!><!>
 
     return C()
 }

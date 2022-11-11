@@ -16,7 +16,7 @@
 
 package org.jetbrains.kotlin.js.translate.intrinsic.functions.factories
 
-import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.builtins.StandardNames
 import org.jetbrains.kotlin.descriptors.ConstructorDescriptor
 import org.jetbrains.kotlin.descriptors.FunctionDescriptor
 import org.jetbrains.kotlin.js.backend.ast.JsExpression
@@ -30,7 +30,7 @@ import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameSafe
 import org.jetbrains.kotlin.types.typeUtil.isNotNullThrowable
 
 object ThrowableConstructorIntrinsicFactory : FunctionIntrinsicFactory {
-    override fun getIntrinsic(descriptor: FunctionDescriptor): FunctionIntrinsic? {
+    override fun getIntrinsic(descriptor: FunctionDescriptor, context: TranslationContext): FunctionIntrinsic? {
         if (descriptor !is ConstructorDescriptor) return null
         if (!descriptor.constructedClass.defaultType.isNotNullThrowable()) return null
 
@@ -42,7 +42,7 @@ object ThrowableConstructorIntrinsicFactory : FunctionIntrinsicFactory {
             val constructor = callInfo.resolvedCall.resultingDescriptor
             val argumentsToPass = arguments.toMutableList()
             val hasCauseParameter = constructor.valueParameters.any {
-                it.type.constructor.declarationDescriptor?.fqNameSafe == KotlinBuiltIns.FQ_NAMES.throwable
+                it.type.constructor.declarationDescriptor?.fqNameSafe == StandardNames.FqNames.throwable
             }
 
             if (constructor.valueParameters.size == 1 && hasCauseParameter) {

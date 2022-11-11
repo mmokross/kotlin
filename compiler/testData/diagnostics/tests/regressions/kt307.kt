@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 // KT-307 Unresolved reference
 
 open class AL {
@@ -5,7 +6,7 @@ open class AL {
 }
 
 interface ALE<T> : <!INTERFACE_WITH_SUPERCLASS!>AL<!> {
-fun getOrNull(index: Int, value: T) : T {
-return <!UNCHECKED_CAST!>get(index) as? T<!> ?: value
-}
+    fun getOrNull(index: Int, value: T) : T {
+        return get(index) <!UNCHECKED_CAST!>as? T<!> ?: value
+    }
 }

@@ -16,35 +16,38 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.ClassConstructorDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.expressions.IrEnumConstructorCall
+import org.jetbrains.kotlin.ir.expressions.IrExpression
+import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.symbols.IrConstructorSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrConstructorSymbolImpl
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
+import org.jetbrains.kotlin.ir.types.IrType
 
 class IrEnumConstructorCallImpl(
-        startOffset: Int,
-        endOffset: Int,
-        override val symbol: IrConstructorSymbol
-) : IrEnumConstructorCall,
-        IrCallWithIndexedArgumentsBase(
-                startOffset, endOffset,
-                symbol.descriptor.builtIns.unitType,
-                symbol.descriptor.valueParameters.size,
-                null
-        )
-{
-    @Deprecated("Creates unbound symbols")
-    constructor(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrConstructorSymbol,
+    typeArgumentsCount: Int,
+    valueArgumentsCount: Int
+) : IrEnumConstructorCall() {
+    override val origin: IrStatementOrigin?
+        get() = null
+
+    override val typeArgumentsByIndex: Array<IrType?> = arrayOfNulls(typeArgumentsCount)
+
+    override val argumentsByParameterIndex: Array<IrExpression?> = arrayOfNulls(valueArgumentsCount)
+
+    override var contextReceiversCount = 0
+
+    companion object {
+        @ObsoleteDescriptorBasedAPI
+        fun fromSymbolDescriptor(
             startOffset: Int,
             endOffset: Int,
-            descriptor: ClassConstructorDescriptor
-    ) : this(startOffset, endOffset, IrConstructorSymbolImpl(descriptor))
-
-    override val descriptor: ClassConstructorDescriptor get() = symbol.descriptor
-
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
-        return visitor.visitEnumConstructorCall(this, data)
+            type: IrType,
+            symbol: IrConstructorSymbol,
+            typeArgumentsCount: Int
+        ) = IrEnumConstructorCallImpl(startOffset, endOffset, type, symbol, typeArgumentsCount, symbol.descriptor.valueParameters.size)
     }
 }

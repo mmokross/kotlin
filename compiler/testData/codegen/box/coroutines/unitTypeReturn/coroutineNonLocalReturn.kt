@@ -1,17 +1,17 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
-suspend fun suspendHere(): String = suspendCoroutineOrReturn { x ->
+suspend fun suspendHere(): String = suspendCoroutineUninterceptedOrReturn { x ->
     x.resume("OK")
     COROUTINE_SUSPENDED
 }
 
 fun builder(c: suspend () -> Unit) {
     var wasResumeCalled = false
-    c.startCoroutine(object : Continuation<Unit> {
+    c.startCoroutine(object : ContinuationAdapter<Unit>() {
         override val context = EmptyCoroutineContext
 
         override fun resume(value: Unit) {

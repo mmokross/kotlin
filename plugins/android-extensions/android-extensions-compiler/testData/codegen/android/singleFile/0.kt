@@ -4,6 +4,7 @@ import android.app.Activity
 import android.view.View
 import android.widget.*
 import kotlinx.android.synthetic.main.layout.*
+import kotlinx.android.synthetic.clearFindViewByIdCache
 
 class R {
     class id {
@@ -18,28 +19,37 @@ class R {
     }
 }
 
-class MyActivity(): Activity() {
+open class MyActivity(): Activity() {
     val textViewWidget = TextView(this)
     val editTextWidget = EditText(this)
     val buttonWidget = Button(this)
 
-    override fun findViewById(id: Int): View? {
+    override fun <T : View> findViewById(id: Int): T? {
         return when (id) {
             R.id.textView1 -> textViewWidget
             R.id.password -> editTextWidget
             R.id.login -> buttonWidget
             else -> null
-        }
+        } as T?
     }
 
-    public fun box(): String{
-        return if (textView1.toString() == "TextView" &&
-                    password.toString() == "EditText" &&
-                    login.toString() == "Button")
-            "OK" else ""
-    }
+    open fun findPasswordWidget(): View = null!!
+
+    private val textViewReadInInit = textView1
+    private val passwordReadThroughOverride = findPasswordWidget()
+
+    private fun check(expect: String, actual: String) =
+        if (expect != actual) "'$actual' != '$expect'" else null
+
+    public fun box(): String =
+        check("Button", login.toString())
+            ?: check("TextView", textViewReadInInit.toString())
+            ?: check("EditText", passwordReadThroughOverride.toString())
+            ?: "OK".also { clearFindViewByIdCache() }
 }
 
-fun box(): String {
-    return MyActivity().box()
+class MyActivity2 : MyActivity() {
+    override fun findPasswordWidget() = password
 }
+
+fun box(): String = MyActivity2().box()

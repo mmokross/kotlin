@@ -1,4 +1,4 @@
-// EXPECTED_REACHABLE_NODES: 494
+// EXPECTED_REACHABLE_NODES: 1284
 package foo
 
 // CHECK_NOT_CALLED: sumEvenInRange
@@ -23,6 +23,8 @@ inline fun sumEvenInRange(a: Int, b: Int): Int {
     return c
 }
 
+// CHECK_BREAKS_COUNT: function=box count=0 TARGET_BACKENDS=JS_IR
+// CHECK_LABELS_COUNT: function=box name=$l$block count=0 TARGET_BACKENDS=JS_IR
 fun box(): String {
     val sum6 = sumEvenInRange(1, 5)
     assertEquals(6, sum6)

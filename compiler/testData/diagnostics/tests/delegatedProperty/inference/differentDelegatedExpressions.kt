@@ -9,13 +9,13 @@ class A(outer: Outer) {
     var g: String by  outer.getContainer().getMyProperty()
 
 
-    var b: String by  foo(<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>())
-    var r: String by  foo(outer.getContainer().<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>())
-    var e: String by  <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>+<!> <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>(<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>())
-    var f: String by  <!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>(<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>()) <!DEBUG_INFO_ELEMENT_WITH_ERROR_TYPE!>-<!> 1
+    var b: String by  <!DELEGATE_SPECIAL_FUNCTION_NONE_APPLICABLE, DELEGATE_SPECIAL_FUNCTION_NONE_APPLICABLE!>foo(<!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>())<!>
+    var r: String by  <!DELEGATE_SPECIAL_FUNCTION_NONE_APPLICABLE, DELEGATE_SPECIAL_FUNCTION_NONE_APPLICABLE!>foo(outer.getContainer().<!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>())<!>
+    var e: String by  <!DEBUG_INFO_MISSING_UNRESOLVED!>+<!> <!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>(<!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>())
+    var f: String by  <!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>(<!NEW_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>getMyProperty<!>()) <!DEBUG_INFO_MISSING_UNRESOLVED!>-<!> 1
 }
 
-fun <A, B> foo(<!UNUSED_PARAMETER!>a<!>: Any?) = MyProperty<A, B>()
+fun <A, B> foo(a: Any?) = MyProperty<A, B>()
 
 fun <A, B> getMyProperty() = MyProperty<A, B>()
 
@@ -25,7 +25,7 @@ class MyProperty<R, T> {
 
     operator fun getValue(thisRef: R, desc: KProperty<*>): T {
         println("get $thisRef ${desc.name}")
-        return <!UNCHECKED_CAST!>null as T<!>
+        return null <!UNCHECKED_CAST!>as T<!>
     }
 
     operator fun setValue(thisRef: R, desc: KProperty<*>, value: T) {
@@ -34,7 +34,7 @@ class MyProperty<R, T> {
 }
 
 operator fun <R, T> MyProperty<R, T>.unaryPlus() = MyProperty<R, T>()
-operator fun <R, T> MyProperty<R, T>.minus(<!UNUSED_PARAMETER!>i<!>: Int) = MyProperty<R, T>()
+operator fun <R, T> MyProperty<R, T>.minus(i: Int) = MyProperty<R, T>()
 
 object O {
     fun <A, B> getMyProperty() = MyProperty<A, B>()

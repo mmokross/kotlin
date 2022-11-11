@@ -1,3 +1,5 @@
+// FIR_IDENTICAL
+// SKIP_JAVAC
 // FILE: p/Nameless.java
 
 package p;
@@ -11,7 +13,7 @@ public class Nameless {
 
 import p.*
 
-class K : <!INVISIBLE_MEMBER!>Nameless<!>() {
+class K : Nameless() {
     <!FUNCTION_DECLARATION_WITH_NO_NAME!>fun ()<!> {}
     val<!SYNTAX!><!> : Int = 1
 }

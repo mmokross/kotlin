@@ -12,13 +12,13 @@ class C {
         }
     }
 
-    fun <X : AutoCloseable> foo(<!UNUSED_PARAMETER!>x<!> : X, <!UNUSED_PARAMETER!>body<!> : (X) -> Unit) {
+    fun <X : AutoCloseable> foo(x : X, body : (X) -> Unit) {
     }
 
     fun p() : Resource? = null
 
     fun bar() {
-        <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>foo<!>(p()) {
+        foo(<!TYPE_MISMATCH!>p()<!>) {
 
         }
     }

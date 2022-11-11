@@ -2,14 +2,13 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 dependencies {
-    compile project(':Lib')
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    testCompile 'junit:junit:4.12'
+    implementation project(':Lib')
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    testImplementation'junit:junit:4.13.2'
 }
 
 android {
     compileSdkVersion 22
-    buildToolsVersion "25.0.1"
 
     sourceSets {
         main.java.srcDirs += 'src/main/java2'

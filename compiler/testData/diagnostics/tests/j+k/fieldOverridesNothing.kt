@@ -1,3 +1,6 @@
+// FIR_IDENTICAL
+// !LANGUAGE: +PreferJavaFieldOverload
+
 // FILE: B.java
 
 public abstract class B implements A {
@@ -15,5 +18,5 @@ class C : B() {
 }
 
 fun foo() {
-    C().<!OVERLOAD_RESOLUTION_AMBIGUITY!>size<!>
+    C().size
 }

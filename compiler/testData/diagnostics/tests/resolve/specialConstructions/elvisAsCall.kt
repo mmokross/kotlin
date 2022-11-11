@@ -13,7 +13,7 @@ fun testElvis(a: Int?, b: Int?) {
     if (a != null) {
         doInt(b ?: <!DEBUG_INFO_SMARTCAST!>a<!>)
     }
-    doList(getList() ?: <!TYPE_INFERENCE_UPPER_BOUND_VIOLATED!>emptyListOfA<!>()) //should be an error
+    <!INFERRED_TYPE_VARIABLE_INTO_POSSIBLE_EMPTY_INTERSECTION("T; A, Int; final class and interface")!>doList<!>(getList() ?: emptyListOfA()) //should be an error
     doList(getList() ?: strangeList { doInt(it) }) //lambda was not analyzed
 }
 
@@ -32,5 +32,5 @@ fun testDataFlowInfo2(a: Int?, b: Int?) {
 }
 
 fun testTypeMismatch(a: String?, b: Any) {
-    doInt(<!TYPE_MISMATCH!>a<!> ?: <!TYPE_MISMATCH!>b<!>)
+    doInt(<!TYPE_MISMATCH!>a ?: b<!>)
 }

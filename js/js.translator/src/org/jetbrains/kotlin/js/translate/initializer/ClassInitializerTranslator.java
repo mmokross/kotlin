@@ -22,6 +22,7 @@ import org.jetbrains.kotlin.builtins.KotlinBuiltIns;
 import org.jetbrains.kotlin.descriptors.*;
 import org.jetbrains.kotlin.descriptors.impl.TypeAliasConstructorDescriptor;
 import org.jetbrains.kotlin.js.backend.ast.*;
+import org.jetbrains.kotlin.js.backend.ast.metadata.MetadataProperties;
 import org.jetbrains.kotlin.js.translate.callTranslator.CallTranslator;
 import org.jetbrains.kotlin.js.translate.context.Namer;
 import org.jetbrains.kotlin.js.translate.context.TranslationContext;
@@ -34,26 +35,21 @@ import org.jetbrains.kotlin.js.translate.reference.ReferenceTranslator;
 import org.jetbrains.kotlin.js.translate.utils.BindingUtils;
 import org.jetbrains.kotlin.js.translate.utils.JsAstUtils;
 import org.jetbrains.kotlin.js.translate.utils.JsDescriptorUtils;
+import org.jetbrains.kotlin.js.translate.utils.TranslationUtils;
 import org.jetbrains.kotlin.js.translate.utils.jsAstUtils.AstUtilsKt;
 import org.jetbrains.kotlin.lexer.KtTokens;
 import org.jetbrains.kotlin.name.Name;
-import org.jetbrains.kotlin.psi.KtClassOrObject;
-import org.jetbrains.kotlin.psi.KtEnumEntry;
-import org.jetbrains.kotlin.psi.KtExpression;
-import org.jetbrains.kotlin.psi.KtParameter;
+import org.jetbrains.kotlin.psi.*;
 import org.jetbrains.kotlin.psi.psiUtil.PsiUtilsKt;
 import org.jetbrains.kotlin.resolve.DescriptorUtils;
-import org.jetbrains.kotlin.resolve.calls.callUtil.CallUtilKt;
+import org.jetbrains.kotlin.resolve.calls.util.CallUtilKt;
 import org.jetbrains.kotlin.resolve.calls.model.DefaultValueArgument;
 import org.jetbrains.kotlin.resolve.calls.model.ExpressionValueArgument;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedValueArgument;
 import org.jetbrains.kotlin.resolve.descriptorUtil.DescriptorUtilsKt;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 import static org.jetbrains.kotlin.js.translate.utils.BindingUtils.*;
 import static org.jetbrains.kotlin.js.translate.utils.FunctionBodyTranslator.setDefaultValueForArguments;
@@ -62,7 +58,7 @@ import static org.jetbrains.kotlin.js.translate.utils.PsiUtils.getPrimaryConstru
 
 public final class ClassInitializerTranslator extends AbstractTranslator {
     @NotNull
-    private final KtClassOrObject classDeclaration;
+    private final KtPureClassOrObject classDeclaration;
     @NotNull
     private final JsFunction initFunction;
     @NotNull
@@ -75,7 +71,7 @@ public final class ClassInitializerTranslator extends AbstractTranslator {
     private int ordinal;
 
     public ClassInitializerTranslator(
-            @NotNull KtClassOrObject classDeclaration,
+            @NotNull KtPureClassOrObject classDeclaration,
             @NotNull TranslationContext context,
             @NotNull JsFunction initFunction
     ) {
@@ -110,8 +106,8 @@ public final class ClassInitializerTranslator extends AbstractTranslator {
             initFunction.getParameters().addAll(translatePrimaryConstructorParameters());
 
             // Initialize enum 'name' and 'ordinal' before translating property initializers.
-            if (classDescriptor.getKind() == ClassKind.ENUM_CLASS) {
-                addEnumClassParameters(initFunction, classDeclaration);
+            if (classDescriptor.getKind() == ClassKind.ENUM_CLASS && classDeclaration instanceof PsiElement) {
+                addEnumClassParameters(initFunction, (PsiElement) classDeclaration);
             }
         }
 
@@ -176,7 +172,8 @@ public final class ClassInitializerTranslator extends AbstractTranslator {
     }
 
     private void mayBeAddCallToSuperMethod(JsFunction initializer) {
-        if (classDeclaration.hasModifier(KtTokens.ENUM_KEYWORD)) {
+        if (classDeclaration instanceof KtClassOrObject &&
+            ((KtClassOrObject) classDeclaration).hasModifier(KtTokens.ENUM_KEYWORD)) {
             addCallToSuperMethod(Collections.emptyList(), initializer, classDeclaration);
         }
         else if (hasAncestorClass(bindingContext(), classDeclaration)) {
@@ -232,26 +229,30 @@ public final class ClassInitializerTranslator extends AbstractTranslator {
                 }
                 else {
                     for (ValueParameterDescriptor parameter : superDescriptor.getValueParameters()) {
-                        JsName parameterName = context.getNameForDescriptor(parameter);
+                        JsName parameterName = JsScope.declareTemporaryName(parameter.getName().asString());
                         arguments.add(parameterName.makeRef());
                         initializer.getParameters().add(new JsParameter(parameterName));
                     }
                 }
 
-                if (superDescriptor.isPrimary()) {
+                if (superDescriptor.isPrimary() || superDescriptor.getConstructedClass().isExternal()) {
                     addCallToSuperMethod(arguments, initializer, superCall.getCall().getCallElement());
                 }
                 else {
-                    int maxValueArgumentIndex = 0;
-                    for (ValueParameterDescriptor arg : superCall.getValueArguments().keySet()) {
-                        ResolvedValueArgument resolvedArg = superCall.getValueArguments().get(arg);
-                        if (!(resolvedArg instanceof DefaultValueArgument)) {
-                            maxValueArgumentIndex = Math.max(maxValueArgumentIndex, arg.getIndex() + 1);
+                    // Add `void 0` for the trailing default arguments
+                    // Anonymous object constructor already has all the parameters proxied, including ones with default values
+                    if (!DescriptorUtils.isAnonymousObject(classDescriptor)) {
+                        int maxValueArgumentIndex = 0;
+                        for (ValueParameterDescriptor arg : superCall.getValueArguments().keySet()) {
+                            ResolvedValueArgument resolvedArg = superCall.getValueArguments().get(arg);
+                            if (!(resolvedArg instanceof DefaultValueArgument)) {
+                                maxValueArgumentIndex = Math.max(maxValueArgumentIndex, arg.getIndex() + 1);
+                            }
                         }
-                    }
-                    int padSize = superDescriptor.getValueParameters().size() - maxValueArgumentIndex;
-                    while (padSize-- > 0) {
-                        arguments.add(Namer.getUndefinedExpression());
+                        int padSize = superDescriptor.getValueParameters().size() - maxValueArgumentIndex;
+                        while (padSize-- > 0) {
+                            arguments.add(Namer.getUndefinedExpression());
+                        }
                     }
                     addCallToSuperSecondaryConstructor(arguments, superDescriptor);
                 }
@@ -330,7 +331,7 @@ public final class ClassInitializerTranslator extends AbstractTranslator {
         return additionalArguments;
     }
 
-    private void addCallToSuperMethod(@NotNull List<JsExpression> arguments, @NotNull JsFunction initializer, @NotNull PsiElement psi) {
+    private void addCallToSuperMethod(@NotNull List<JsExpression> arguments, @NotNull JsFunction initializer, @NotNull KtPureElement psi) {
         if (initializer.getName() == null) {
             JsName ref = context().scope().declareName(Namer.CALLEE_NAME);
             initializer.setName(ref);
@@ -378,11 +379,14 @@ public final class ClassInitializerTranslator extends AbstractTranslator {
         if (propertyDescriptor == null) {
             return;
         }
-        JsNameRef initialValueForProperty = jsParameter.getName().makeRef();
+        JsExpression initialValueForProperty = jsParameter.getName().makeRef();
+        MetadataProperties.setType(initialValueForProperty, propertyDescriptor.getType());
+        initialValueForProperty = TranslationUtils.coerce(context(), initialValueForProperty,
+                                                          TranslationUtils.getReturnTypeForCoercion(propertyDescriptor));
         addInitializerOrPropertyDefinition(initialValueForProperty, propertyDescriptor);
     }
 
-    private void addInitializerOrPropertyDefinition(@NotNull JsNameRef initialValue, @NotNull PropertyDescriptor propertyDescriptor) {
+    private void addInitializerOrPropertyDefinition(@NotNull JsExpression initialValue, @NotNull PropertyDescriptor propertyDescriptor) {
         initFunction.getBody().getStatements().add(
                 InitializerUtils.generateInitializerForProperty(context(), propertyDescriptor, initialValue));
     }

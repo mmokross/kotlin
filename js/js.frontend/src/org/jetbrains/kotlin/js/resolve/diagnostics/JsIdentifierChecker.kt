@@ -16,19 +16,25 @@
 
 package org.jetbrains.kotlin.js.resolve.diagnostics
 
-import com.intellij.psi.PsiElement
+import org.jetbrains.kotlin.config.LanguageFeature
+import org.jetbrains.kotlin.config.LanguageVersionSettings
 import org.jetbrains.kotlin.diagnostics.DiagnosticSink
 import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.js.naming.NameSuggestion
 import org.jetbrains.kotlin.psi.KtDeclaration
+import org.jetbrains.kotlin.psi.KtSimpleNameExpression
 import org.jetbrains.kotlin.resolve.IdentifierChecker
 
-object JsIdentifierChecker : IdentifierChecker {
-    override fun checkIdentifier(identifier: PsiElement?, diagnosticHolder: DiagnosticSink) {
-        if (identifier == null) return
+class JsIdentifierChecker(private val languageVersionSettings: LanguageVersionSettings) : IdentifierChecker {
+    override fun checkIdentifier(simpleNameExpression: KtSimpleNameExpression, diagnosticHolder: DiagnosticSink) {
+        if (languageVersionSettings.supportsFeature(LanguageFeature.JsAllowInvalidCharsIdentifiersEscaping)) {
+            return
+        }
+        val simpleName = simpleNameExpression.getReferencedName()
 
-        val hasIllegalChars = identifier.text.split('.').any { NameSuggestion.sanitizeName(it) != it }
+        val hasIllegalChars = simpleName.split('.').any { NameSuggestion.sanitizeName(it) != it }
         if (hasIllegalChars) {
+            val identifier = simpleNameExpression.getIdentifier() ?: return
             diagnosticHolder.report(Errors.INVALID_CHARACTERS.on(identifier, "contains illegal characters"))
         }
     }

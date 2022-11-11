@@ -16,41 +16,67 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.descriptors.FunctionDescriptor
-import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
+import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrFunctionReference
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
 import org.jetbrains.kotlin.ir.symbols.IrFunctionSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.createFunctionSymbol
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.name.Name
 
 class IrFunctionReferenceImpl(
-        startOffset: Int,
-        endOffset: Int,
-        type: KotlinType,
-        override val symbol: IrFunctionSymbol,
-        override val descriptor: FunctionDescriptor,
-        typeArguments: Map<TypeParameterDescriptor, KotlinType>?,
-        origin: IrStatementOrigin? = null
-) : IrFunctionReference,
-        IrCallWithIndexedArgumentsBase(
-                startOffset, endOffset, type,
-                symbol.descriptor.valueParameters.size,
-                typeArguments,
-                origin
-        )
-{
-    @Deprecated("Creates unbound symbol")
-    constructor(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val symbol: IrFunctionSymbol,
+    typeArgumentsCount: Int,
+    valueArgumentsCount: Int,
+    override val reflectionTarget: IrFunctionSymbol? = symbol,
+    override val origin: IrStatementOrigin? = null,
+) : IrFunctionReference() {
+    override val referencedName: Name
+        get() = symbol.owner.name
+
+    override val typeArgumentsByIndex: Array<IrType?> = arrayOfNulls(typeArgumentsCount)
+
+    override val argumentsByParameterIndex: Array<IrExpression?> = arrayOfNulls(valueArgumentsCount)
+
+    companion object {
+        @ObsoleteDescriptorBasedAPI
+        fun fromSymbolDescriptor(
             startOffset: Int,
             endOffset: Int,
-            type: KotlinType,
-            descriptor: FunctionDescriptor,
-            typeArguments: Map<TypeParameterDescriptor, KotlinType>?,
+            type: IrType,
+            symbol: IrFunctionSymbol,
+            typeArgumentsCount: Int,
+            reflectionTarget: IrFunctionSymbol?,
             origin: IrStatementOrigin? = null
-    ) : this(startOffset, endOffset, type, createFunctionSymbol(descriptor.original), descriptor, typeArguments, origin)
+        ) = IrFunctionReferenceImpl(
+            startOffset, endOffset,
+            type,
+            symbol,
+            typeArgumentsCount,
+            symbol.descriptor.valueParameters.size,
+            reflectionTarget,
+            origin
+        )
 
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitFunctionReference(this, data)
+        fun fromSymbolOwner(
+            startOffset: Int,
+            endOffset: Int,
+            type: IrType,
+            symbol: IrFunctionSymbol,
+            typeArgumentsCount: Int,
+            reflectionTarget: IrFunctionSymbol?,
+            origin: IrStatementOrigin? = null
+        ) = IrFunctionReferenceImpl(
+            startOffset, endOffset,
+            type,
+            symbol,
+            typeArgumentsCount,
+            symbol.owner.valueParameters.size,
+            reflectionTarget,
+            origin
+        )
+    }
 }

@@ -1,4 +1,10 @@
-// WITH_RUNTIME
+// WITH_STDLIB
+// CHECK_CASES_COUNT: function=bar1 count=3 TARGET_BACKENDS=JS
+// CHECK_CASES_COUNT: function=bar1 count=4 IGNORED_BACKENDS=JS
+// CHECK_IF_COUNT: function=bar1 count=0
+// CHECK_CASES_COUNT: function=bar2 count=4 TARGET_BACKENDS=JS
+// CHECK_CASES_COUNT: function=bar2 count=5 IGNORED_BACKENDS=JS
+// CHECK_IF_COUNT: function=bar2 count=0
 
 import kotlin.test.assertEquals
 
@@ -14,8 +20,8 @@ fun bar1(x : Season) : String {
         Season.WINTER, Season.SPRING -> return "winter_spring"
         Season.SPRING -> return "spring"
         Season.SUMMER -> return "summer"
+        else -> return "autumn"
     }
-    return "autumn"
 }
 
 fun bar2(x : Season) : String {
@@ -24,9 +30,8 @@ fun bar2(x : Season) : String {
         Season.SPRING -> return "spring"
         Season.SUMMER -> return "summer"
         Season.AUTUMN -> return "autumn"
+        else -> return "fail unknown"
     }
-
-    return "fail unknown"
 }
 
 fun box() : String {

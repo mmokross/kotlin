@@ -1,17 +1,6 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.js.translate.intrinsic.functions.factories;
@@ -29,8 +18,10 @@ import org.jetbrains.kotlin.js.translate.context.TranslationContext;
 import org.jetbrains.kotlin.js.translate.intrinsic.functions.basic.FunctionIntrinsic;
 import org.jetbrains.kotlin.js.translate.intrinsic.functions.basic.FunctionIntrinsicWithReceiverComputed;
 import org.jetbrains.kotlin.js.translate.intrinsic.functions.basic.RangeToIntrinsic;
+import org.jetbrains.kotlin.js.translate.intrinsic.functions.basic.RangeUntilIntrinsic;
 import org.jetbrains.kotlin.js.translate.operation.OperatorTable;
 import org.jetbrains.kotlin.js.translate.utils.JsAstUtils;
+import org.jetbrains.kotlin.js.translate.utils.jsAstUtils.AstUtilsKt;
 import org.jetbrains.kotlin.lexer.KtToken;
 import org.jetbrains.kotlin.name.Name;
 import org.jetbrains.kotlin.types.expressions.OperatorConventions;
@@ -82,6 +73,14 @@ public enum PrimitiveBinaryOperationFIF implements FunctionIntrinsicFactory {
         }
     };
 
+    private static final BinaryOperationIntrinsicBase NUMBER_REM_INTRINSIC = new BinaryOperationIntrinsicBase() {
+        @NotNull
+        @Override
+        public JsExpression doApply(@NotNull JsExpression left, @NotNull JsExpression right, @NotNull TranslationContext context) {
+            return JsAstUtils.toInt32(JsAstUtils.mod(left, right));
+        }
+    };
+
     @NotNull
     private static final BinaryOperationIntrinsicBase BUILTINS_COMPARE_TO_INTRINSIC = new BinaryOperationIntrinsicBase() {
         @NotNull
@@ -109,16 +108,22 @@ public enum PrimitiveBinaryOperationFIF implements FunctionIntrinsicFactory {
     private static final DescriptorPredicate PRIMITIVE_NUMBERS_BINARY_OPERATIONS =
             pattern(NamePredicate.PRIMITIVE_NUMBERS_MAPPED_TO_PRIMITIVE_JS, BINARY_OPERATIONS);
 
+    private static final DescriptorPredicate PRIMITIVE_INTEGRAL_NUMBERS_COMPARE_TO_INTEGRAL_OPERATIONS =
+            pattern("Byte|Short|Int.compareTo(Byte|Short|Int)");
     private static final DescriptorPredicate PRIMITIVE_NUMBERS_COMPARE_TO_OPERATIONS =
             pattern(NamePredicate.PRIMITIVE_NUMBERS_MAPPED_TO_PRIMITIVE_JS, "compareTo");
+
     private static final Predicate<FunctionDescriptor> INT_WITH_BIT_OPERATIONS = pattern("Int.or|and|xor|shl|shr|ushr")
             .or(pattern("Short|Byte.or|and|xor"));
     private static final DescriptorPredicate BOOLEAN_OPERATIONS = pattern("Boolean.or|and|xor");
     private static final DescriptorPredicate STRING_PLUS = pattern("String.plus");
     private static final DescriptorPredicate INT_MULTIPLICATION = pattern("Int.times(Int)");
+    private static final DescriptorPredicate NUMBER_REM = pattern("Byte|Short|Int.rem(Byte|Short|Int)");
 
     private static final DescriptorPredicate CHAR_RANGE_TO = pattern("Char.rangeTo(Char)");
+    private static final DescriptorPredicate CHAR_RANGE_UNTIL = pattern("Char.rangeUntil(Char)");
     private static final DescriptorPredicate NUMBER_RANGE_TO = pattern("Byte|Short|Int.rangeTo(Byte|Short|Int)");
+    private static final DescriptorPredicate NUMBER_RANGE_UNTIL = pattern("Byte|Short|Int|Long.rangeUntil(Byte|Short|Int|Long)");
 
     private static final ImmutableMap<String, JsBinaryOperator> BINARY_BITWISE_OPERATIONS = ImmutableMap.<String, JsBinaryOperator>builder()
             .put("or", JsBinaryOperator.BIT_OR)
@@ -134,18 +139,27 @@ public enum PrimitiveBinaryOperationFIF implements FunctionIntrinsicFactory {
 
     @Nullable
     @Override
-    public FunctionIntrinsic getIntrinsic(@NotNull FunctionDescriptor descriptor) {
+    public FunctionIntrinsic getIntrinsic(@NotNull FunctionDescriptor descriptor, @NotNull TranslationContext context) {
         if (CHAR_RANGE_TO.test(descriptor)) {
             return new RangeToIntrinsic(descriptor);
         }
-
-        if (PRIMITIVE_NUMBERS_COMPARE_TO_OPERATIONS.test(descriptor)) {
-            return PRIMITIVE_NUMBER_COMPARE_TO_INTRINSIC;
+        if (CHAR_RANGE_UNTIL.test(descriptor)) {
+            return new RangeUntilIntrinsic(descriptor);
         }
 
+        if (PRIMITIVE_INTEGRAL_NUMBERS_COMPARE_TO_INTEGRAL_OPERATIONS.test(descriptor)) {
+            return PRIMITIVE_NUMBER_COMPARE_TO_INTRINSIC;
+        }
+        if (PRIMITIVE_NUMBERS_COMPARE_TO_OPERATIONS.test(descriptor)) {
+            return BUILTINS_COMPARE_TO_INTRINSIC;
+        }
 
         if (KotlinBuiltIns.isBuiltIn(descriptor) && descriptor.getName().equals(OperatorNameConventions.COMPARE_TO)) {
             return BUILTINS_COMPARE_TO_INTRINSIC;
+        }
+
+        if (NUMBER_RANGE_UNTIL.test(descriptor)) { // test here because Long type is rejected after that
+            return new RangeUntilIntrinsic(descriptor);
         }
 
         if (!PREDICATE.test(descriptor)) {
@@ -154,6 +168,9 @@ public enum PrimitiveBinaryOperationFIF implements FunctionIntrinsicFactory {
 
         if (INT_MULTIPLICATION.test(descriptor)) {
             return INT_MULTIPLICATION_INTRINSIC;
+        }
+        if (NUMBER_REM.test(descriptor)) {
+            return NUMBER_REM_INTRINSIC;
         }
         if (NUMBER_RANGE_TO.test(descriptor)) {
             return new RangeToIntrinsic(descriptor);
@@ -190,14 +207,18 @@ public enum PrimitiveBinaryOperationFIF implements FunctionIntrinsicFactory {
         // Temporary hack to get '%' for deprecated 'mod' operator
         Name descriptorName = descriptor.getName().equals(OperatorNameConventions.MOD) ? OperatorNameConventions.REM : descriptor.getName();
 
+        switch (descriptorName.asString()) {
+            case "or":
+                return JsBinaryOperator.BIT_OR;
+            case "and":
+                return JsBinaryOperator.BIT_AND;
+            case "xor":
+                return JsBinaryOperator.BIT_XOR;
+            default:
+                break;
+        }
+
         KtToken token = OperatorConventions.BINARY_OPERATION_NAMES.inverse().get(descriptorName);
-        if (token == null) {
-            token = OperatorConventions.BOOLEAN_OPERATIONS.inverse().get(descriptorName);
-        }
-        if (token == null) {
-            assert descriptorName.asString().equals("xor");
-            return JsBinaryOperator.BIT_XOR;
-        }
         return OperatorTable.getBinaryOperator(token);
     }
 
@@ -283,7 +304,7 @@ public enum PrimitiveBinaryOperationFIF implements FunctionIntrinsicFactory {
         @NotNull
         @Override
         public JsExpression doApply(@NotNull JsExpression left, @NotNull JsExpression right, @NotNull TranslationContext context) {
-            return JsAstUtils.toChar(functionIntrinsic.doApply(left, right, context));
+            return AstUtilsKt.toChar(context, functionIntrinsic.doApply(left, right, context));
         }
     }
 

@@ -25,26 +25,28 @@ interface JvmDependenciesIndex {
     val indexedRoots: Sequence<JavaRoot>
 
     fun <T : Any> findClass(
-            classId: ClassId,
-            acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
-            findClassGivenDirectory: (VirtualFile, JavaRoot.RootType) -> T?
+        classId: ClassId,
+        acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
+        findClassGivenDirectory: (VirtualFile, JavaRoot.RootType) -> T?
     ): T?
 
     fun traverseDirectoriesInPackage(
-            packageFqName: FqName,
-            acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
-            continueSearch: (VirtualFile, JavaRoot.RootType) -> Boolean
+        packageFqName: FqName,
+        acceptedRootTypes: Set<JavaRoot.RootType> = JavaRoot.SourceAndBinary,
+        continueSearch: (VirtualFile, JavaRoot.RootType) -> Boolean
     )
 }
 
 data class JavaRoot(val file: VirtualFile, val type: RootType, val prefixFqName: FqName? = null) {
     enum class RootType {
         SOURCE,
-        BINARY
+        BINARY,
+        BINARY_SIG
     }
 
     companion object RootTypes {
-        val OnlyBinary: Set<RootType> = EnumSet.of(RootType.BINARY)
-        val SourceAndBinary: Set<RootType> = EnumSet.of(RootType.BINARY, RootType.SOURCE)
+        val OnlyBinary: Set<RootType> = EnumSet.of(RootType.BINARY, RootType.BINARY_SIG)
+        val OnlySource: Set<RootType> = EnumSet.of(RootType.SOURCE)
+        val SourceAndBinary: Set<RootType> = EnumSet.of(RootType.BINARY, RootType.BINARY_SIG, RootType.SOURCE)
     }
 }

@@ -1,22 +1,12 @@
 /*
- * Copyright 2010-2017 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2021 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.js.translate.reference;
 
 import com.google.gwt.dev.js.ThrowExceptionOnErrorReporter;
+import com.google.gwt.dev.js.rhino.CodePosition;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.config.CommonConfigurationKeys;
@@ -28,6 +18,7 @@ import org.jetbrains.kotlin.js.inline.util.RewriteUtilsKt;
 import org.jetbrains.kotlin.js.parser.ParserUtilsKt;
 import org.jetbrains.kotlin.js.resolve.BindingContextSlicesJsKt;
 import org.jetbrains.kotlin.js.resolve.diagnostics.JsCallChecker;
+import org.jetbrains.kotlin.js.sourceMap.PsiUtils;
 import org.jetbrains.kotlin.js.translate.callTranslator.CallTranslator;
 import org.jetbrains.kotlin.js.translate.context.TranslationContext;
 import org.jetbrains.kotlin.name.Name;
@@ -35,11 +26,12 @@ import org.jetbrains.kotlin.psi.KtCallExpression;
 import org.jetbrains.kotlin.psi.KtExpression;
 import org.jetbrains.kotlin.psi.ValueArgument;
 import org.jetbrains.kotlin.resolve.FunctionImportedFromObject;
-import org.jetbrains.kotlin.resolve.calls.callUtil.CallUtilKt;
+import org.jetbrains.kotlin.resolve.calls.util.CallUtilKt;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
 import org.jetbrains.kotlin.resolve.inline.InlineUtil;
 import org.jetbrains.kotlin.resolve.scopes.LexicalScope;
 
+import java.io.IOException;
 import java.util.*;
 
 import static org.jetbrains.kotlin.js.resolve.diagnostics.JsCallChecker.isJsCall;
@@ -79,7 +71,7 @@ public final class CallExpressionTranslator extends AbstractCallExpressionTransl
 
         if (descriptor instanceof ValueParameterDescriptor) {
             return InlineUtil.isInline(descriptor.getContainingDeclaration()) &&
-                   InlineUtil.isInlineLambdaParameter((ParameterDescriptor) descriptor) &&
+                   InlineUtil.isInlineParameter((ParameterDescriptor) descriptor) &&
                    !((ValueParameterDescriptor) descriptor).isCrossinline();
         }
 
@@ -149,7 +141,7 @@ public final class CallExpressionTranslator extends AbstractCallExpressionTransl
     @Nullable
     private static VariableDescriptor getVariableByName(@NotNull LexicalScope scope, @NotNull Name name) {
         while (true) {
-            Collection<VariableDescriptor> variables = scope.getContributedVariables(name, NoLookupLocation.FROM_BACKEND);
+            Collection<? extends VariableDescriptor> variables = scope.getContributedVariables(name, NoLookupLocation.FROM_BACKEND);
             if (!variables.isEmpty()) {
                 return variables.size() == 1 ? variables.iterator().next() : null;
             }
@@ -175,6 +167,18 @@ public final class CallExpressionTranslator extends AbstractCallExpressionTransl
         assert currentScope instanceof JsFunctionScope : "Usage of js outside of function is unexpected";
         JsScope temporaryRootScope = new JsRootScope(new JsProgram());
         JsScope scope = new DelegatingJsFunctionScopeWithTemporaryParent((JsFunctionScope) currentScope, temporaryRootScope);
-        return ParserUtilsKt.parse(jsCode, ThrowExceptionOnErrorReporter.INSTANCE, scope, jsCodeExpression.getContainingKtFile().getName());
+
+        JsLocation location;
+        try {
+            location = PsiUtils.extractLocationFromPsi(jsCodeExpression, context().getSourceFilePathResolver());
+        }
+        catch (IOException e) {
+            location = new JsLocation(jsCodeExpression.getContainingKtFile().getName(), 0, 0);
+        }
+
+        List<JsStatement> statements = ParserUtilsKt.parseExpressionOrStatement(
+                jsCode, ThrowExceptionOnErrorReporter.INSTANCE, scope,
+                new CodePosition(location.getStartLine(), location.getStartChar()), location.getFile());
+        return statements != null ? statements : Collections.emptyList();
     }
 }

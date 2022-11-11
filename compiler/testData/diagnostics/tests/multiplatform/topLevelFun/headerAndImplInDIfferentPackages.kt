@@ -1,18 +1,17 @@
-// !LANGUAGE: +MultiPlatformProjects
 // MODULE: m1-common
 // FILE: common.kt
 package common
 
-<!JS:HEADER_WITHOUT_IMPLEMENTATION, JVM:HEADER_WITHOUT_IMPLEMENTATION!>header fun foo()<!>
+expect fun <!NO_ACTUAL_FOR_EXPECT{JVM}, NO_ACTUAL_FOR_EXPECT{JS}!>foo<!>()
 
-// MODULE: m2-jvm(m1-common)
+// MODULE: m2-jvm()()(m1-common)
 // FILE: jvm.kt
 package jvm
 
-<!IMPLEMENTATION_WITHOUT_HEADER!>impl<!> fun foo() {}
+actual fun <!ACTUAL_WITHOUT_EXPECT!>foo<!>() {}
 
-// MODULE: m3-js(m1-common)
+// MODULE: m3-js()()(m1-common)
 // FILE: js.kt
 package js
 
-<!IMPLEMENTATION_WITHOUT_HEADER!>impl<!> fun foo() {}
+actual fun <!ACTUAL_WITHOUT_EXPECT!>foo<!>() {}

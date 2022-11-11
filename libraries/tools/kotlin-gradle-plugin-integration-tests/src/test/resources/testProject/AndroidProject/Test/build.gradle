@@ -1,15 +1,28 @@
-apply plugin: 'com.android.test'
-apply plugin: 'kotlin-android'
+import org.gradle.util.VersionNumber
+
+plugins {
+    id 'com.android.test'
+    id 'org.jetbrains.kotlin.android'
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+}
 
 android {
     compileSdkVersion 22
-    buildToolsVersion "25.0.2"
 
     defaultConfig {
         minSdkVersion 7
         targetSdkVersion 22
 
         testApplicationId 'org.jetbrains.kotlin.gradle.test.androidalfa'
+    }
+
+    // Needed for older AGP. It can be removed when the lowest supported AGP version is 4.2.0 or newer.
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
     }
 
     targetProjectPath ':Android'
@@ -27,4 +40,5 @@ android {
             }
         }
     }
+    lintOptions.abortOnError = false
 }

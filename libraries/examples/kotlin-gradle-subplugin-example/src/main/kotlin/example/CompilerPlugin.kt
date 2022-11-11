@@ -16,16 +16,13 @@
 
 package example
 
+import com.intellij.mock.MockProject
 import org.jetbrains.kotlin.cli.common.CLIConfigurationKeys
 import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector
-import org.jetbrains.kotlin.config.CompilerConfigurationKey
-import org.jetbrains.kotlin.compiler.plugin.CommandLineProcessor
-import org.jetbrains.kotlin.compiler.plugin.CliOption
+import org.jetbrains.kotlin.compiler.plugin.*
 import org.jetbrains.kotlin.config.CompilerConfiguration
-import org.jetbrains.kotlin.compiler.plugin.CliOptionProcessingException
-import org.jetbrains.kotlin.compiler.plugin.ComponentRegistrar
-import org.jetbrains.kotlin.com.intellij.mock.MockProject
+import org.jetbrains.kotlin.config.CompilerConfigurationKey
 
 public object ExampleConfigurationKeys {
     public val EXAMPLE_KEY: CompilerConfigurationKey<String> = CompilerConfigurationKey.create<String>("example argument")
@@ -33,21 +30,25 @@ public object ExampleConfigurationKeys {
 
 public class ExampleCommandLineProcessor : CommandLineProcessor {
     companion object {
-        public val EXAMPLE_PLUGIN_ID: String = "example.plugin"
+        public const val EXAMPLE_PLUGIN_ID: String = "example.plugin"
         public val EXAMPLE_OPTION: CliOption = CliOption("exampleKey", "<value>", "")
     }
 
     override val pluginId: String = EXAMPLE_PLUGIN_ID
     override val pluginOptions: Collection<CliOption> = listOf(EXAMPLE_OPTION)
 
-    override fun processOption(option: CliOption, value: String, configuration: CompilerConfiguration) {
+    override fun processOption(
+        option: AbstractCliOption,
+        value: String, configuration: CompilerConfiguration
+    ) {
         when (option) {
             EXAMPLE_OPTION -> configuration.put(ExampleConfigurationKeys.EXAMPLE_KEY, value)
-            else -> throw CliOptionProcessingException("Unknown option: ${option.name}")
+            else -> throw CliOptionProcessingException("Unknown option: ${option.optionName}")
         }
     }
 }
 
+@Suppress("DEPRECATION")
 public class ExampleComponentRegistrar : ComponentRegistrar {
     public override fun registerProjectComponents(project: MockProject, configuration: CompilerConfiguration) {
         val exampleValue = configuration.get(ExampleConfigurationKeys.EXAMPLE_KEY)

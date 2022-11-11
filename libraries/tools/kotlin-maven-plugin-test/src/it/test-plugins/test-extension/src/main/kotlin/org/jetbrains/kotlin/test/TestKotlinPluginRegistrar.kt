@@ -20,22 +20,25 @@ class TestCommandLineProcessor : CommandLineProcessor {
 
     override val pluginOptions: Collection<CliOption> = listOf(MyTestOption)
 
-    override fun processOption(option: CliOption, value: String, configuration: CompilerConfiguration) {
+    override fun processOption(option: AbstractCliOption, value: String, configuration: CompilerConfiguration) {
         when (option) {
             MyTestOption -> {
                 configuration.put(TestPluginKeys.TestOption, value)
             }
-            else -> throw CliOptionProcessingException("Unknown option: ${option.name}")
+            else -> throw CliOptionProcessingException("Unknown option: ${option.optionName}")
         }
     }
 }
 
-class TestKotlinPluginRegistrar : ComponentRegistrar {
-    override fun registerProjectComponents(project: MockProject, configuration: CompilerConfiguration) {
+class TestKotlinPluginRegistrar : CompilerPluginRegistrar() {
+    override fun ExtensionStorage.registerExtensions(configuration: CompilerConfiguration) {
         val collector = configuration.get(CLIConfigurationKeys.MESSAGE_COLLECTOR_KEY)!!
         val option = configuration.get(TestPluginKeys.TestOption)!!
 
         collector.report(CompilerMessageSeverity.INFO, "Plugin applied")
         collector.report(CompilerMessageSeverity.INFO, "Option value: $option")
     }
+
+    override val supportsK2: Boolean
+        get() = true
 }

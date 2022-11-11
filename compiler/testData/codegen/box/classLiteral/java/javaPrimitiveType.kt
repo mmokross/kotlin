@@ -1,7 +1,6 @@
-// TODO: muted automatically, investigate should it be ran for JS or not
-// IGNORE_BACKEND: JS, NATIVE
+// TARGET_BACKEND: JVM
 
-// WITH_RUNTIME
+// WITH_STDLIB
 
 import kotlin.reflect.KClass
 
@@ -50,14 +49,15 @@ fun box(): String {
     check(Double::class.javaPrimitiveType, "double")
     check(Double::class, "double")
 
+    check(Void::class.javaPrimitiveType, "void")
+    check(Void::class, "void")
+
     checkNull(String::class.javaPrimitiveType)
     checkNull(String::class)
 
-    checkNull(Nothing::class.javaPrimitiveType)
-    checkNull(Nothing::class)
-
-    checkNull(Void::class.javaPrimitiveType)
-    checkNull(Void::class)
+    // TODO: KT-15518
+    check(Nothing::class.javaPrimitiveType, "void")
+    check(Nothing::class, "void")
 
     return "OK"
 }

@@ -18,34 +18,11 @@ package org.jetbrains.kotlin.ir.expressions.impl
 
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrThrow
-import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.ir.types.IrType
 
 class IrThrowImpl(
-        startOffset: Int,
-        endOffset: Int,
-        type: KotlinType
-) : IrExpressionBase(startOffset, endOffset, type), IrThrow {
-    constructor(
-            startOffset: Int,
-            endOffset: Int,
-            type: KotlinType,
-            value: IrExpression
-    ) : this(startOffset, endOffset, type) {
-        this.value = value
-    }
-
-    override lateinit var value: IrExpression
-
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitThrow(this, data)
-
-    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        value.accept(visitor, data)
-    }
-
-    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        value = value.transform(transformer, data)
-    }
-}
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override var value: IrExpression,
+) : IrThrow()

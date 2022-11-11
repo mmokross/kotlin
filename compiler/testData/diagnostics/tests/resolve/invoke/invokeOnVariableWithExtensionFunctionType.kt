@@ -23,7 +23,7 @@ fun test(a: A, b: B) {
     }
 
     with(b) {
-        a.foo(<!NO_VALUE_FOR_PARAMETER!>)<!>
+        a.foo<!NO_VALUE_FOR_PARAMETER!>()<!>
         a.<!FUNCTION_EXPECTED!>(<!UNRESOLVED_REFERENCE_WRONG_RECEIVER!>foo<!>)<!>()
 
         (a.foo)()
@@ -40,7 +40,7 @@ fun test(a: A, b: B) {
     }
 }
 
-// FILE: 1.kt
+// FILE: 2.kt
 package fooIsMember
 
 class A {
@@ -65,7 +65,7 @@ fun test(a: A, b: B) {
     }
 
     with(b) {
-        a.foo(<!NO_VALUE_FOR_PARAMETER!>)<!>
+        a.foo<!NO_VALUE_FOR_PARAMETER!>()<!>
         a.<!FUNCTION_EXPECTED!>(<!UNRESOLVED_REFERENCE!>foo<!>)<!>()
 
         (a.foo)()

@@ -1,10 +1,11 @@
+// FIR_IDENTICAL
 // FILE: main.kt
 package test
 
 import first.*
 import second.*
 
-val a12 by <!DELEGATE_SPECIAL_FUNCTION_NONE_APPLICABLE!>A()<!>
+val a12 by <!DELEGATE_SPECIAL_FUNCTION_AMBIGUITY!>A()<!>
 
 // FILE: first.kt
 package first

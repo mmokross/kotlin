@@ -1,7 +1,8 @@
+// !DIAGNOSTICS: +UNUSED_EXPRESSION
+
 fun unusedExpression(s: String) {
-    // TODO: report UNUSED_EXPRESSION (KT-12551)
-    s::hashCode
-    s::class
+    <!UNUSED_EXPRESSION!>s::hashCode<!>
+    <!UNUSED_EXPRESSION!>s::class<!>
 }
 
 fun noUnusedParameter(s: String): Int {
@@ -10,13 +11,13 @@ fun noUnusedParameter(s: String): Int {
 }
 
 fun unreachableCode(): Int {
-    (if (true) return 1 else return 0)::toString
+    (if (true) return 1 else return 0)<!UNREACHABLE_CODE!>::toString<!>
     <!UNREACHABLE_CODE!>return 0<!>
 }
 
 fun unreachableCodeInLoop(): Int {
     while (true) {
-        (break)::toString
+        (break)<!UNREACHABLE_CODE!>::toString<!>
         <!UNREACHABLE_CODE!>return 1<!>
     }
     return 2

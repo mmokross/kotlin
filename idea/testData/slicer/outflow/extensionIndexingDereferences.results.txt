@@ -1,1 +1,0 @@
-13 val <bold>x = A()</bold>

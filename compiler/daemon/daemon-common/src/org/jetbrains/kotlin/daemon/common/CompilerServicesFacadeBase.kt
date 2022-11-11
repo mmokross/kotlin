@@ -16,8 +16,6 @@
 
 package org.jetbrains.kotlin.daemon.common
 
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageLocation
-import org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity
 import java.io.Serializable
 import java.rmi.Remote
 import java.rmi.RemoteException
@@ -50,8 +48,9 @@ enum class ReportSeverity(val code: Int) {
     DEBUG(3);
 
     companion object {
-        fun fromCode(code: Int): ReportSeverity? =
-                ReportSeverity.values().firstOrNull { it.code == code }
+        fun fromCode(code: Int): ReportSeverity {
+            return values().firstOrNull { it.code == code } ?: error("Can't find a matching ReportSeverity with code = $code")
+        }
     }
 }
 

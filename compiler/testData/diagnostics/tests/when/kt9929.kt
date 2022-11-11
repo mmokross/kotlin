@@ -1,9 +1,9 @@
-val test: Int = if (true) {
+val test: Int = if (true) <!TYPE_MISMATCH!>{
     when (2) {
         1 -> 1
-        else -> <!NULL_FOR_NONNULL_TYPE!>null<!>
+        else -> null
     }
-}
+}<!>
 else {
     2
 }

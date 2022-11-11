@@ -1,7 +1,7 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.startCoroutine
+import kotlin.coroutines.startCoroutine
 
 class Controller {
     suspend inline fun suspendInlineThrow(v: String): String = throw RuntimeException(v)
@@ -18,8 +18,8 @@ fun box(): String {
     var result = ""
 
     builder {
-        result = try { suspendInlineThrow("OK") } catch (e: RuntimeException) { e.message!! }
-//        result = suspendInline("OK")
+        result = try { suspendInlineThrow("O") } catch (e: RuntimeException) { e.message!! }
+        result += suspendInline("K")
     }
 
     return result

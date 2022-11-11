@@ -1,7 +1,9 @@
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // TODO: muted automatically, investigate should it be ran for JS or not
 // IGNORE_BACKEND: JS
 
-// WITH_RUNTIME
+// WITH_STDLIB
 
 inline fun<reified T> createArray(n: Int, crossinline block: () -> T): Array<T> {
     return Array<T>(n) { block() }

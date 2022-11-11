@@ -1,7 +1,7 @@
-// EXPECTED_REACHABLE_NODES: 555
+// EXPECTED_REACHABLE_NODES: 1323
 fun <T> checkThrown(x: T, block: (T) -> Any?): Unit? {
     return try {
-        println((block(x) ?: "").toString())
+        block(x)
         null
     }
     catch (e: NoWhenBranchMatchedException) {
@@ -11,7 +11,7 @@ fun <T> checkThrown(x: T, block: (T) -> Any?): Unit? {
 
 fun <T> checkNotThrown(x: T, block: (T) -> Any?): Unit? {
     return try {
-        println((block(x) ?: "").toString())
+        block(x)
         Unit
     }
     catch (e: NoWhenBranchMatchedException) {
@@ -29,9 +29,9 @@ enum class E {
     X, Y
 }
 
-private inline fun createWrongC(): C = js("void 0").unsafeCast<C>()
+private inline fun createWrongC(): C = js("{ name: 'Z' }").unsafeCast<C>()
 
-private inline fun createWrongE(): E = js("void 0").unsafeCast<E>()
+private inline fun createWrongE(): E = js("{ name: 'Z' }").unsafeCast<E>()
 
 fun box(): String {
     checkThrown(createWrongC()) {

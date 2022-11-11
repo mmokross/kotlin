@@ -1,9 +1,9 @@
-// !LANGUAGE: +MultiPlatformProjects
+// FIR_IDENTICAL
 // MODULE: m1-common
 // FILE: common.kt
 
-<!CONFLICTING_OVERLOADS!>header fun foo()<!>
+<!CONFLICTING_OVERLOADS!>expect fun foo()<!>
 
-<!CONFLICTING_OVERLOADS, HEADER_DECLARATION_WITH_BODY!>header fun foo()<!> {}
+<!CONFLICTING_OVERLOADS, EXPECTED_DECLARATION_WITH_BODY!>expect fun foo()<!> {}
 
-<!HEADER_DECLARATION_WITH_BODY!>header fun bar()<!> {}
+<!EXPECTED_DECLARATION_WITH_BODY!>expect fun bar()<!> {}

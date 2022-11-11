@@ -1,11 +1,11 @@
-// WITH_RUNTIME
+// WITH_STDLIB
 // WITH_COROUTINES
 import helpers.*
-import kotlin.coroutines.experimental.*
-import kotlin.coroutines.experimental.intrinsics.*
+import kotlin.coroutines.*
+import kotlin.coroutines.intrinsics.*
 
 class Controller {
-    suspend fun suspendHere(v: Int): Int = suspendCoroutineOrReturn { x ->
+    suspend fun suspendHere(v: Int): Int = suspendCoroutineUninterceptedOrReturn { x ->
         x.resume(v * 2)
         COROUTINE_SUSPENDED
     }
@@ -26,13 +26,12 @@ fun box(): String {
 
     builder {
         result += "-"
-        foo {
-            result += suspendHere(it).toString()
-        }
+        foo { result += suspendHere(it).toString() }
+        foo(fun(it: Int) { result += suspendHere(it).toString() })
         result += "+"
     }
 
-    if (result != "-24+") return "fail: $result"
+    if (result != "-2424+") return "fail: $result"
 
     return "OK"
 }

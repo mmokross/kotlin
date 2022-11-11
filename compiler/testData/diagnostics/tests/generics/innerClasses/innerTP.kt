@@ -20,7 +20,7 @@ class Outer<E> {
 fun factoryString(): Outer<String>.Inner<String> = null!!
 
 fun <T, Y> infer(x: T, y: Y): Outer<T>.Inner<Y> = null!!
-val infered = infer("", 1)
+val inferred = infer("", 1)
 
 fun main() {
     val outer = Outer<String>()
@@ -31,7 +31,7 @@ fun main() {
     checkSubtype<Outer<*>.Inner<*>>(outer.Inner<Int>())
 
     checkSubtype<Outer<CharSequence>.Inner<CharSequence>>(<!TYPE_MISMATCH!>outer.bar()<!>)
-    checkSubtype<Outer<CharSequence>.Inner<CharSequence>>(outer.<!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>Inner()<!>)
+    checkSubtype<Outer<CharSequence>.Inner<CharSequence>>(<!TYPE_MISMATCH!>outer.Inner()<!>)
 
     outer.set(outer.bar())
     outer.set(outer.Inner())

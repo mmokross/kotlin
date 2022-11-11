@@ -1,182 +1,169 @@
-<a href="http://slack.kotlinlang.org/"><img src="http://slack.kotlinlang.org/badge.svg" height="20"></a>
-[![TeamCity (simple build status)](https://img.shields.io/teamcity/http/teamcity.jetbrains.com/s/bt345.svg)](https://teamcity.jetbrains.com/viewType.html?buildTypeId=bt345&branch_Kotlin=%3Cdefault%3E&tab=buildTypeStatusDiv)
-[![Maven Central](https://img.shields.io/maven-central/v/org.jetbrains.kotlin/kotlin-maven-plugin.svg)](http://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.jetbrains.kotlin%22)
-[![GitHub license](https://img.shields.io/badge/license-Apache%20License%202.0-blue.svg?style=flat)](http://www.apache.org/licenses/LICENSE-2.0)
+[![official project](https://jb.gg/badges/official.svg)](https://confluence.jetbrains.com/display/ALL/JetBrains+on+GitHub)
+[![TeamCity (simple build status)](https://img.shields.io/teamcity/http/teamcity.jetbrains.com/s/Kotlin_KotlinPublic_Compiler.svg)](https://teamcity.jetbrains.com/buildConfiguration/Kotlin_KotlinPublic_Compiler?branch=%3Cdefault%3E&buildTypeTab=overview&mode=builds)
+[![Maven Central](https://img.shields.io/maven-central/v/org.jetbrains.kotlin/kotlin-maven-plugin.svg)](https://search.maven.org/#search%7Cga%7C1%7Cg%3A%22org.jetbrains.kotlin%22)
+[![GitHub license](https://img.shields.io/badge/license-Apache%20License%202.0-blue.svg?style=flat)](https://www.apache.org/licenses/LICENSE-2.0)
+[![Revved up by Gradle Enterprise](https://img.shields.io/badge/Revved%20up%20by-Gradle%20Enterprise-06A0CE?logo=Gradle&labelColor=02303A)](https://ge.jetbrains.com/scans?search.rootProjectNames=Kotlin)
 
 # Kotlin Programming Language
 
-Welcome to [Kotlin](https://kotlinlang.org/)! Some handy links:
+Welcome to [Kotlin](https://kotlinlang.org/)!   
+It is an open-source, statically typed programming language supported and developed by [JetBrains](https://www.jetbrains.com/) and open-source contributors.
+
+Some handy links:
 
  * [Kotlin Site](https://kotlinlang.org/)
  * [Getting Started Guide](https://kotlinlang.org/docs/tutorials/getting-started.html)
- * [Try Kotlin](https://try.kotlinlang.org/)
+ * [Try Kotlin](https://play.kotlinlang.org/)
  * [Kotlin Standard Library](https://kotlinlang.org/api/latest/jvm/stdlib/index.html)
  * [Issue Tracker](https://youtrack.jetbrains.com/issues/KT)
+ * [Kotlin YouTube Channel](https://www.youtube.com/channel/UCP7uiEZIqci43m22KDl0sNw)
  * [Forum](https://discuss.kotlinlang.org/)
  * [Kotlin Blog](https://blog.jetbrains.com/kotlin/)
+ * [Subscribe to Kotlin YouTube channel](https://www.youtube.com/channel/UCP7uiEZIqci43m22KDl0sNw)
  * [Follow Kotlin on Twitter](https://twitter.com/kotlin)
- * [Public Slack channel](http://slack.kotlinlang.org/)
+ * [Public Slack channel](https://slack.kotlinlang.org/)
  * [TeamCity CI build](https://teamcity.jetbrains.com/project.html?tab=projectOverview&projectId=Kotlin)
+
+## Kotlin Multiplatform capabilities
+
+Support for multiplatform programming is one of Kotlin’s key benefits. It reduces time spent writing and maintaining the same code for [different platforms](https://kotlinlang.org/docs/reference/mpp-supported-platforms.html) while retaining the flexibility and benefits of native programming.
+
+ * [Kotlin Multiplatform Mobile](https://kotlinlang.org/lp/mobile/) for sharing code between Android and iOS
+ * [Getting Started with Kotlin Multiplatform Mobile Guide](https://kotlinlang.org/docs/mobile/create-first-app.html)
+ * [Kotlin Multiplatform Benefits](https://kotlinlang.org/docs/reference/multiplatform.html)
+ * [Share code on all platforms](https://kotlinlang.org/docs/reference/mpp-share-on-platforms.html#share-code-on-all-platforms)
+ * [Share code on similar platforms](https://kotlinlang.org/docs/reference/mpp-share-on-platforms.html#share-code-on-similar-platforms)
 
 ## Editing Kotlin
 
- * [Kotlin IntelliJ IDEA Plugin](https://kotlinlang.org/docs/tutorials/getting-started.html)
+ * [Kotlin IntelliJ IDEA Plugin](https://kotlinlang.org/docs/tutorials/getting-started.html) ([source code](https://github.com/JetBrains/intellij-community/tree/master/plugins/kotlin))
  * [Kotlin Eclipse Plugin](https://kotlinlang.org/docs/tutorials/getting-started-eclipse.html)
- * [Kotlin TextMate Bundle](https://github.com/vkostyukov/kotlin-sublime-package)
+ * [Kotlin Sublime Text Package](https://github.com/vkostyukov/kotlin-sublime-package)
 
 ## Build environment requirements
 
-In order to build Kotlin distribution you need to have:
+This repository is using [Gradle toolchains](https://docs.gradle.org/current/userguide/toolchains.html) feature
+to select and auto-provision required JDKs from [AdoptOpenJdk](https://adoptopenjdk.net) project. 
 
-- Apache Ant 1.9.4 and higher
-- JDK 1.6, 1.7 and 1.8
-- Setup environment variables as following:
+Unfortunately [AdoptOpenJdk](https://adoptopenjdk.net) project does not provide required JDK 1.6 and 1.7 images,
+so you could either download them manually and provide path to installation via `JDK_1_6` and `JDK_1_7` environment variables or
+use following SDK managers:
+- [Asdf-vm](https://asdf-vm.com/)
+- [Jabba](https://github.com/shyiko/jabba)
+- [SDKMAN!](https://sdkman.io/)
 
-        JAVA_HOME="path to JDK 1.8"
-        JDK_16="path to JDK 1.6"
-        JDK_17="path to JDK 1.7"
-        JDK_18="path to JDK 1.8"
+Alternatively, it is still possible to only provide required JDKs via environment variables 
+(see [gradle.properties](./gradle.properties#L5) for supported variable names). To ensure Gradle uses only JDKs 
+from environmental variables - disable Gradle toolchain auto-detection by passing `-Porg.gradle.java.installations.auto-detect=false` option
+(or put it into `$GRADLE_USER_HOME/gradle.properties`).
+
+For local development, if you're not working on the standard library, it's OK to avoid installing JDK 1.6 and JDK 1.7.
+Add `kotlin.build.isObsoleteJdkOverrideEnabled=true` to the `local.properties` file, so build will only use JDK 1.8+. Note, that in this
+case, build will have Gradle remote build cache misses for some tasks. 
+
+Note: The JDK 6 for MacOS is not available on Oracle's site. You can install it by
+
+```bash
+$ brew tap homebrew/cask-versions
+$ brew install --cask java6
+```
+
+On Windows you might need to add long paths setting to the repo:
+
+    git config core.longpaths true 
 
 ## Building
 
-To build this project, first time you try to build you need to run this:
+The project is built with Gradle. Run Gradle to build the project and to run the tests 
+using the following command on Unix/macOS:
 
-    ant -f update_dependencies.xml
+    ./gradlew <tasks-and-options>
+    
+or the following command on Windows:
 
-which will setup the dependencies on
+    gradlew <tasks-and-options>
+
+On the first project configuration gradle will download and setup the dependencies on
 
 * `intellij-core` is a part of command line compiler and contains only necessary APIs.
 * `idea-full` is a full blown IntelliJ IDEA Community Edition to be used in the plugin module.
 
-Then, you need to run
+These dependencies are quite large, so depending on the quality of your internet connection 
+you might face timeouts getting them. In this case, you can increase timeout by specifying the following 
+command line parameters on the first run: 
+    
+    ./gradlew -Dhttp.socketTimeout=60000 -Dhttp.connectionTimeout=60000
 
-    ant -f build.xml
+## Important gradle tasks
 
-which will build the binaries of the compiler and put them into the `dist` directory. You may need to increase the **heap size** for Ant using
-[ANT_OPTS](https://web.liferay.com/community/wiki/-/wiki/Main/Ant+opts).
+- `clean` - clean build results
+- `dist` - assembles the compiler distribution into `dist/kotlinc/` folder
+- `install` - build and install all public artifacts into local maven repository
+- `coreLibsTest` - build and run stdlib, reflect and kotlin-test tests
+- `gradlePluginTest` - build and run gradle plugin tests
+- `compilerTest` - build and run all compiler tests
 
-**OPTIONAL:** Maven artifact distribution is built separately, go into `libraries` directory after building the compiler and run:
+To reproduce TeamCity build use `-Pteamcity=true` flag. Local builds don't run proguard and have jar compression disabled by default.
 
-    ./gradlew build install
-    mvn install
-
-> Note: on Windows type `gradlew` without the leading `./`
-
+**OPTIONAL:** Some artifacts, mainly Maven plugin ones, are built separately with Maven.
 Refer to [libraries/ReadMe.md](libraries/ReadMe.md) for details.
 
-## Working with the project in IntelliJ IDEA
+To build Kotlin/Native, see
+[kotlin-native/README.md](kotlin-native/README.md#building-from-source).
 
-The [root kotlin project](https://github.com/JetBrains/kotlin) already has an IntelliJ IDEA project, you can just open it in IntelliJ IDEA.
+## <a name="working-in-idea"></a> Working with the project in IntelliJ IDEA
 
-You may need to set the Project SDK (`File -> Project Structure -> Project`).
-You may also need to add `tools.jar` to your SDK: 
-    
-    File -> Project Structure -> SDKs -> <Your JDK> -> Classpath
+Working with the Kotlin project requires at least IntelliJ IDEA 2019.1. You can download IntelliJ IDEA 2019.1 [here](https://www.jetbrains.com/idea/download).
 
-then choose the `tools.jar` in the JDK's `lib` directory.
+After cloning the project, to import the project in IntelliJ choose the project directory in the Open project dialog. Then, after project opened, select 
+`File` -> `New` -> `Module from Existing Sources...` in the menu, and select `build.gradle.kts` file in the project's root folder.
 
-If you are not dealing with Android, you may need to disable the Android Plugin in order to compile the project.
+In the import dialog, select `use default gradle wrapper`.
 
-### <a name="installing-plugin"></a> Installing the latest Kotlin plugin
+To be able to run tests from IntelliJ easily, check `Delegate IDE build/run actions to Gradle` and choose `Gradle Test Runner` in the Gradle runner settings after importing the project.
 
-Since Kotlin project contains code written in Kotlin itself, you will also need a Kotlin plugin to build the project in IntelliJ IDEA.
+At this time, you can use the latest released `1.6.x` version of the Kotlin plugin for working with the code. To make sure you have the latest version installed, use `Tools` -> `Kotlin` -> `Configure Kotlin Plugin Updates`.
 
-You probably want to have locally the same version of plugin that build server is using for building.
-As this version is constantly moving, the best way to always be updated is to let IntelliJ IDEA notify you when it is time to renew your plugin.
+For handy work with compiler tests it's recommended to use [
+Kotlin Compiler Test Helper](https://github.com/demiurg906/test-data-helper-plugin)
 
-To keep the plugin version in sync with the rest of the team and our [Continuous Integration server](https://teamcity.jetbrains.com/project.html?projectId=Kotlin&tab=projectOverview)
-you should setup IDEA to update the plugin directly from the build server.
+### Dependency verification
 
-Open:
+We have a [dependencies verification](https://docs.gradle.org/current/userguide/dependency_verification.html) feature enabled in the
+repository for all Gradle builds. Gradle will check hashes (md5 and sha256) of used dependencies and will fail builds with
+`Dependency verification failed` errors when local artifacts are absent or have different hashes listed in the
+[verification-metadata.xml](https://github.com/JetBrains/kotlin/blob/master/gradle/verification-metadata.xml) file.
 
-    Preferences -> Plugins -> Browse Repositories -> Manage Repositories...
+It's expected that `verification-metadata.xml` should only be updated with the commits that modify the build. There are some tips how
+to perform such updates:
 
-and add the following URL to your repositories:
+- Use auto-generation for getting an initial list of new hashes (verify updates relate to you changes).
 
-    https://teamcity.jetbrains.com/guestAuth/repository/download/bt345/bootstrap.tcbuildtag/updatePlugins.xml
+`./gradlew -i --write-verification-metadata sha256,md5 -Pkotlin.native.enabled=true help`
 
-Then update the list of plugins in "Browse Repositories", you'll see two versions of Kotlin there, install the one with the higher version number.
+*(any other task may be used instead of `help`)*
 
-If you want to keep an IntelliJ IDEA installation with that bleeding edge Kotlin plugin for working Kotlin project sources only separate to your default IntelliJ IDEA installation with the stable Kotlin
-plugin [see this document](https://intellij-support.jetbrains.com/hc/en-us/articles/207240985-Changing-IDE-default-directories-used-for-config-plugins-and-caches-storage), which describes how to have multiple IntelliJ IDEA installations using different configurations and plugin directories.
+- Consider removing old versions from the file if you are updating dependencies.
+- Leave meaningful `origin` attribute (instead of `Generated by Gradle`) if you did some manual verification of the artifact.
+- Always do manual verification if several hashes are needed, and a new `also-trust` tag has to be added.
+- If you’re adding a dependency with OS mentioning in an artifact name (`darwin`, `mac`, `osx`, `linux`, `windows`), remember to add 
+  counterparts for other platforms.
 
-### Compiling and running
+## Using -dev and -SNAPSHOT versions
 
-From this root project there are Run/Debug Configurations for running IDEA or the Compiler Tests for example; so if you want to try out the latest and greatest IDEA plugin
+We publish `-dev` and `-SNAPSHOT` versions frequently.
 
-* VCS -> Git -> Pull
-* Run IntelliJ IDEA
-* a child IntelliJ IDEA with the Kotlin plugin will then startup
-* you can now open the [kotlin libraries project](https://github.com/JetBrains/kotlin/tree/master/libraries) to then work with the various kotlin libraries etc.
+For `-dev` versions you can use the [list of available versions](https://maven.pkg.jetbrains.space/kotlin/p/kotlin/bootstrap/org/jetbrains/kotlin/kotlin-compiler/maven-metadata.xml) and include this maven repository:
+
+`maven { url = uri("https://maven.pkg.jetbrains.space/kotlin/p/kotlin/bootstrap") }`
+
+For `-SNAPSHOT` versions that are updated daily, you can use the [list of available versions](https://oss.sonatype.org/content/repositories/snapshots/org/jetbrains/kotlin/kotlin-compiler/maven-metadata.xml) and include this maven repository:
+
+`maven { url = uri("https://oss.sonatype.org/content/repositories/snapshots/") }`
+
+# License
+Kotlin is distributed under the terms of the Apache License (Version 2.0). See [license folder](license/README.md) for details.
 
 # Contributing
 
-We love contributions! There's [lots to do on Kotlin](https://youtrack.jetbrains.com/issues/KT) and on the
-[standard library](https://youtrack.jetbrains.com/issues/KT?q=%23Kotlin%20%23Unresolved%20and%20(links:%20KT-2554,%20KT-4089%20or%20%23Libraries)) so why not chat with us
-about what you're interested in doing? Please join the #kontributors channel in [our Slack chat](http://kotlinslackin.herokuapp.com/)
-and let us know about your plans.
-
-If you want to find some issues to start off with, try [this query](https://youtrack.jetbrains.com/issues/KT?q=tag:%20%7BUp%20For%20Grabs%7D%20%23Unresolved) which should find all Kotlin issues that marked as "up-for-grabs".
-
-Currently only committers can assign issues to themselves so just add a comment if you're starting work on it.
-
-A nice gentle way to contribute would be to review the [standard library docs](https://kotlinlang.org/api/latest/jvm/stdlib/index.html)
-and find classes or functions which are not documented very well and submit a patch.
-
-In particular it'd be great if all functions included a nice example of how to use it such as for the
-[`hashMapOf()`](https://kotlinlang.org/api/latest/jvm/stdlib/kotlin.collections/hash-map-of.html) function.
-This is implemented using the [`@sample`](https://github.com/JetBrains/kotlin/blob/1.1.0/libraries/stdlib/src/kotlin/collections/Maps.kt#L91)
-macro to include code from a test function. The benefits of this approach are twofold; First, the API's documentation is improved via beneficial examples that help new users and second, the code coverage is increased.
-
-Also the [JavaScript translation](https://github.com/JetBrains/kotlin/blob/master/js/ReadMe.md) could really use your help. See the [JavaScript contribution section](https://github.com/JetBrains/kotlin/blob/master/js/ReadMe.md) for more details.
-
-
-## If you want to work on the compiler
-
-The Kotlin compiler is written in Java and Kotlin (we gradually migrate more and more of it to pure Kotlin). So the easiest way to work on the compiler or IntelliJ IDEA plugin is
-
-* download a recent [IntelliJ IDEA](https://www.jetbrains.com/idea/?fromMenu#chooseYourEdition), Community edition is enough
-* [install the Kotlin plugin](#installing-plugin)
-* open the [root kotlin project](https://github.com/JetBrains/kotlin) in IDEA (opening the kotlin directory)
-
-You can now run the various Run/Debug Configurations such as
-
-* IDEA
-* All Compiler Tests
-* All IDEA Plugin Tests
-
-
-## If you want to work on the Kotlin libraries
-
-* download a recent [IntelliJ IDEA](https://www.jetbrains.com/idea/?fromMenu#chooseYourEdition), Community edition is enough
-* [install the Kotlin plugin](#installing-plugin)
-* open the [kotlin libraries project](https://github.com/JetBrains/kotlin/tree/master/libraries)
-
-Then build via
-
-    cd libraries
-    ./gradlew build install
-    mvn install
-    
-> Note: on Windows type `gradlew` without the leading `./`
-
-Some of the code in the standard library is created by generating code from templates. See the [README](libraries/stdlib/ReadMe.md) in the stdlib section for how run the code generator. The existing templates can be used as examples for creating new ones.
-
-## Submitting patches
-
-The best way to submit a patch is to [fork the project on github](https://help.github.com/articles/fork-a-repo/) then send us a
-[pull request](https://help.github.com/articles/creating-a-pull-request/) via [github](https://github.com).
-
-If you create your own fork, it might help to enable rebase by default
-when you pull by executing
-``` bash
-git config --global pull.rebase true
-```
-This will avoid your local repo having too many merge commits
-which will help keep your pull request simple and easy to apply.
-
-## Commit comments
-
-If you include in your comment this text (where KT-1234 is the Issue ID in the [Issue Tracker](https://youtrack.jetbrains.com/issues/KT)), the issue will get automatically marked as fixed.
-
-    #KT-1234 Fixed
+Please be sure to review Kotlin's [contributing guidelines](docs/contributing.md) to learn how to help the project.

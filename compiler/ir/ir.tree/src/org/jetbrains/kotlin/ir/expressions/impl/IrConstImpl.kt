@@ -16,60 +16,73 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
+import org.jetbrains.kotlin.builtins.PrimitiveType
 import org.jetbrains.kotlin.ir.expressions.IrConst
 import org.jetbrains.kotlin.ir.expressions.IrConstKind
-import org.jetbrains.kotlin.ir.expressions.IrExpression
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.ir.types.getPrimitiveType
+import org.jetbrains.kotlin.ir.types.isMarkedNullable
 
-class IrConstImpl<T> (
-        startOffset: Int,
-        endOffset: Int,
-        type: KotlinType,
-        override val kind: IrConstKind<T>,
-        override val value: T
-) : IrTerminalExpressionBase(startOffset, endOffset, type), IrConst<T> {
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitConst(this, data)
-
-    override fun copy(): IrConst<T> =
-            IrConstImpl(startOffset, endOffset, type, kind, value)
-
+class IrConstImpl<T>(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val kind: IrConstKind<T>,
+    override val value: T
+) : IrConst<T>() {
     companion object {
-        fun string(startOffset: Int, endOffset: Int, type: KotlinType, value: String): IrConstImpl<String> =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.String, value)
+        fun string(startOffset: Int, endOffset: Int, type: IrType, value: String): IrConstImpl<String> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.String, value)
 
-        fun int(startOffset: Int, endOffset: Int, type: KotlinType, value: Int): IrConstImpl<Int> =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Int, value)
+        fun int(startOffset: Int, endOffset: Int, type: IrType, value: Int): IrConstImpl<Int> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Int, value)
 
-        fun constNull(startOffset: Int, endOffset: Int, type: KotlinType): IrConstImpl<Nothing?> =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Null, null)
+        fun constNull(startOffset: Int, endOffset: Int, type: IrType): IrConstImpl<Nothing?> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Null, null)
 
-        fun boolean(startOffset: Int, endOffset: Int, type: KotlinType, value: Boolean): IrConstImpl<Boolean> =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Boolean, value)
+        fun boolean(startOffset: Int, endOffset: Int, type: IrType, value: Boolean): IrConstImpl<Boolean> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Boolean, value)
 
-        fun constTrue(startOffset: Int, endOffset: Int, type: KotlinType): IrConstImpl<Boolean> =
-                boolean(startOffset, endOffset, type, true)
+        fun constTrue(startOffset: Int, endOffset: Int, type: IrType): IrConstImpl<Boolean> =
+            boolean(startOffset, endOffset, type, true)
 
-        fun constFalse(startOffset: Int, endOffset: Int, type: KotlinType): IrConstImpl<Boolean> =
-                boolean(startOffset, endOffset, type, false)
+        fun constFalse(startOffset: Int, endOffset: Int, type: IrType): IrConstImpl<Boolean> =
+            boolean(startOffset, endOffset, type, false)
 
-        fun long(startOffset: Int, endOffset: Int, type: KotlinType, value: Long): IrExpression =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Long, value)
+        fun long(startOffset: Int, endOffset: Int, type: IrType, value: Long): IrConstImpl<Long> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Long, value)
 
-        fun float(startOffset: Int, endOffset: Int, type: KotlinType, value: Float): IrExpression =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Float, value)
+        fun float(startOffset: Int, endOffset: Int, type: IrType, value: Float): IrConstImpl<Float> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Float, value)
 
-        fun double(startOffset: Int, endOffset: Int, type: KotlinType, value: Double): IrExpression =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Double, value)
+        fun double(startOffset: Int, endOffset: Int, type: IrType, value: Double): IrConstImpl<Double> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Double, value)
 
-        fun char(startOffset: Int, endOffset: Int, type: KotlinType, value: Char): IrExpression =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Char, value)
+        fun char(startOffset: Int, endOffset: Int, type: IrType, value: Char): IrConstImpl<Char> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Char, value)
 
-        fun byte(startOffset: Int, endOffset: Int, type: KotlinType, value: Byte): IrExpression =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Byte, value)
+        fun byte(startOffset: Int, endOffset: Int, type: IrType, value: Byte): IrConstImpl<Byte> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Byte, value)
 
-        fun short(startOffset: Int, endOffset: Int, type: KotlinType, value: Short): IrExpression =
-                IrConstImpl(startOffset, endOffset, type, IrConstKind.Short, value)
+        fun short(startOffset: Int, endOffset: Int, type: IrType, value: Short): IrConstImpl<Short> =
+            IrConstImpl(startOffset, endOffset, type, IrConstKind.Short, value)
+
+        fun defaultValueForType(startOffset: Int, endOffset: Int, type: IrType): IrConstImpl<*> {
+            if (type.isMarkedNullable()) return constNull(startOffset, endOffset, type)
+            return when (type.getPrimitiveType()) {
+                PrimitiveType.BOOLEAN -> boolean(startOffset, endOffset, type, false)
+                PrimitiveType.CHAR -> char(startOffset, endOffset, type, 0.toChar())
+                PrimitiveType.BYTE -> byte(startOffset, endOffset, type, 0)
+                PrimitiveType.SHORT -> short(startOffset, endOffset, type, 0)
+                PrimitiveType.INT -> int(startOffset, endOffset, type, 0)
+                PrimitiveType.FLOAT -> float(startOffset, endOffset, type, 0.0F)
+                PrimitiveType.LONG -> long(startOffset, endOffset, type, 0)
+                PrimitiveType.DOUBLE -> double(startOffset, endOffset, type, 0.0)
+                else -> constNull(startOffset, endOffset, type)
+            }
+        }
     }
 }
+
+fun <T> IrConst<T>.copyWithOffsets(startOffset: Int, endOffset: Int) =
+    IrConstImpl(startOffset, endOffset, type, kind, value)

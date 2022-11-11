@@ -1,4 +1,6 @@
-// EXPECTED_REACHABLE_NODES: 498
+// DONT_TARGET_EXACT_BACKEND: WASM
+// WASM_MUTE_REASON: UNSUPPORTED_JS_INTEROP
+// EXPECTED_REACHABLE_NODES: 1288
 package foo
 
 fun box(): String {
@@ -13,7 +15,7 @@ fun box(): String {
     assertEquals(a.foo, undefined)
     assertNotEquals(a.toString, undefined)
 
-    val b: dynamic = object {val bar = ""}
+    val b: dynamic = object {@JsName("bar") val bar = ""}
     assertEquals(b.foo, undefined)
     assertNotEquals(b.bar, undefined)
 

@@ -1,21 +1,52 @@
 apply plugin: 'kotlin'
 
 sourceSets {
-    main.kotlin.srcDir 'src'
+    main {
+        kotlin.srcDir 'src'
+        resources.srcDir "$buildDir/copyright"
+    }
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_gradle_plugin_version"
+    api "org.jetbrains.kotlin:kotlin-stdlib:$bootstrapKotlinVersion"
+    api "org.jetbrains.kotlin:kotlin-reflect:$bootstrapKotlinVersion"
 }
 
 compileKotlin {
-    compilerJarFile = null
-    kotlinOptions.freeCompilerArgs = ["-version"]
+    kotlinOptions {
+        freeCompilerArgs = ["-version"]
+    }
+}
+
+task copyCopyrightProfile(type: Copy) {
+    from "$rootDir/.idea/copyright"
+    into "$buildDir/copyright"
+    include 'apache.xml'
+}
+
+processResources {
+    dependsOn(copyCopyrightProfile)
 }
 
 task run(type: JavaExec) {
     group 'application'
-    main 'generators.GenerateStandardLibKt'
+    mainClass = 'generators.GenerateStandardLibKt'
     classpath sourceSets.main.runtimeClasspath
-    args = ["${rootDir}/.."]
+    args = ["${rootDir}"]
+    systemProperty 'line.separator', '\n'
+}
+
+task generateStdlibTests(type: JavaExec) {
+    group 'application'
+    mainClass = 'generators.GenerateStandardLibTestsKt'
+    classpath sourceSets.main.runtimeClasspath
+    args = ["${rootDir}"]
+    systemProperty 'line.separator', '\n'
+}
+
+task generateUnicodeData(type: JavaExec) {
+    group 'application'
+    mainClass = 'generators.unicode.GenerateUnicodeDataKt'
+    classpath sourceSets.main.runtimeClasspath
+    args = ["${rootDir}"]
 }

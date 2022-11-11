@@ -20,8 +20,8 @@ import com.intellij.psi.PsiElement
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.diagnostics.Errors
 import org.jetbrains.kotlin.psi.KtCallableReferenceExpression
-import org.jetbrains.kotlin.resolve.calls.callUtil.getResolvedCall
-import org.jetbrains.kotlin.resolve.calls.callUtil.isCallableReference
+import org.jetbrains.kotlin.resolve.calls.util.getResolvedCall
+import org.jetbrains.kotlin.resolve.calls.util.isCallableReference
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
 
 class CallableReferenceCompatibilityChecker : CallChecker {
@@ -32,11 +32,16 @@ class CallableReferenceCompatibilityChecker : CallChecker {
         for ((_, resolvedArgument) in resolvedCall.valueArguments) {
             inner@ for (argument in resolvedArgument.arguments) {
                 val argumentExpression = argument.getArgumentExpression() as? KtCallableReferenceExpression ?: continue@inner
-                val callableReferenceResolvedCall = argumentExpression.callableReference.getResolvedCall(context.trace.bindingContext) ?: continue@inner
+                val callableReferenceResolvedCall =
+                    argumentExpression.callableReference.getResolvedCall(context.trace.bindingContext) ?: continue@inner
                 if (callableReferenceResolvedCall.call.isCallableReference() &&
                     callableReferenceResolvedCall.candidateDescriptor.typeParameters.isNotEmpty()) {
-                    context.trace.report(Errors.UNSUPPORTED_FEATURE.on(argumentExpression,
-                                                                       typeInferenceForCallableReferencesFeature to context.languageVersionSettings))
+                    context.trace.report(
+                        Errors.UNSUPPORTED_FEATURE.on(
+                            argumentExpression,
+                            typeInferenceForCallableReferencesFeature to context.languageVersionSettings
+                        )
+                    )
                 }
             }
         }

@@ -19,76 +19,97 @@ package org.jetbrains.kotlin.codegen.optimization.fixStack
 import com.intellij.util.containers.Stack
 import org.jetbrains.kotlin.codegen.inline.isAfterInlineMarker
 import org.jetbrains.kotlin.codegen.inline.isBeforeInlineMarker
-import org.jetbrains.kotlin.codegen.inline.isMarkedReturn
-import org.jetbrains.kotlin.codegen.optimization.common.MethodAnalyzer
-import org.jetbrains.kotlin.codegen.optimization.common.OptimizationBasicInterpreter
 import org.jetbrains.kotlin.codegen.pseudoInsns.PseudoInsn
+import org.jetbrains.kotlin.utils.SmartList
 import org.jetbrains.org.objectweb.asm.Opcodes
-import org.jetbrains.org.objectweb.asm.tree.*
-import org.jetbrains.org.objectweb.asm.tree.analysis.BasicValue
+import org.jetbrains.org.objectweb.asm.tree.AbstractInsnNode
+import org.jetbrains.org.objectweb.asm.tree.JumpInsnNode
+import org.jetbrains.org.objectweb.asm.tree.LabelNode
+import org.jetbrains.org.objectweb.asm.tree.MethodNode
 import org.jetbrains.org.objectweb.asm.tree.analysis.Frame
 import org.jetbrains.org.objectweb.asm.tree.analysis.Interpreter
+import kotlin.math.max
 
 internal class FixStackAnalyzer(
-        owner: String,
-        val method: MethodNode,
-        val context: FixStackContext
+    owner: String,
+    val method: MethodNode,
+    val context: FixStackContext,
+    private val skipBreakContinueGotoEdges: Boolean = true
 ) {
     companion object {
         // Stack size is always non-negative
         const val DEAD_CODE_STACK_SIZE = -1
     }
 
-    private val expectedStackNode = hashMapOf<LabelNode, AbstractInsnNode>()
+    private val loopEntryPointMarkers = hashMapOf<LabelNode, SmartList<AbstractInsnNode>>()
 
     val maxExtraStackSize: Int get() = analyzer.maxExtraStackSize
 
-    fun getStackToSpill(location: AbstractInsnNode) = analyzer.spilledStacks[location]
-    fun getActualStack(location: AbstractInsnNode) = getFrame(location)?.getStackContent()
-    fun getActualStackSize(location: AbstractInsnNode) = getFrame(location)?.stackSizeWithExtra ?: DEAD_CODE_STACK_SIZE
-    fun getExpectedStackSize(location: AbstractInsnNode) = getExpectedStackFrame(location)?.stackSizeWithExtra ?: DEAD_CODE_STACK_SIZE
+    fun getStackToSpill(location: AbstractInsnNode): List<FixStackValue>? =
+        analyzer.spilledStacks[location]
 
-    private fun getExpectedStackFrame(location: AbstractInsnNode) = getFrame(expectedStackNode[location] ?: location)
+    fun getActualStack(location: AbstractInsnNode): List<FixStackValue>? =
+        getFrame(location)?.getStackContent()
+
+    fun getActualStackSize(location: AbstractInsnNode): Int =
+        getFrame(location)?.stackSizeWithExtra ?: DEAD_CODE_STACK_SIZE
+
+    fun getExpectedStackSize(location: AbstractInsnNode): Int {
+        // We should look for expected stack size at loop entry point markers if available,
+        // otherwise at location itself.
+        val expectedStackSizeNodes = loopEntryPointMarkers[location] ?: listOf(location)
+
+        // Find 1st live node among expected stack size nodes and return corresponding stack size
+        for (node in expectedStackSizeNodes) {
+            val frame = getFrame(node) ?: continue
+            return frame.stackSizeWithExtra
+        }
+
+        // No live nodes found
+        // => loop entry point is unreachable or node itself is unreachable
+        return DEAD_CODE_STACK_SIZE
+    }
+
     private fun getFrame(location: AbstractInsnNode) = analyzer.getFrame(location) as? InternalAnalyzer.FixStackFrame
 
     fun analyze() {
-        preprocess()
+        recordLoopEntryPointMarkers()
         analyzer.analyze()
     }
 
-    private fun preprocess() {
+    private fun recordLoopEntryPointMarkers() {
+        // NB JVM_IR can generate nested loops with same exit labels (see kt37370.kt)
         for (marker in context.fakeAlwaysFalseIfeqMarkers) {
             val next = marker.next
             if (next is JumpInsnNode) {
-                expectedStackNode[next.label] = marker
+                loopEntryPointMarkers.getOrPut(next.label) { SmartList() }.add(marker)
             }
         }
     }
 
-    private val analyzer = InternalAnalyzer(owner, method, context)
+    private val analyzer = InternalAnalyzer(owner)
 
-    private class InternalAnalyzer(
-            owner: String,
-            method: MethodNode,
-            val context: FixStackContext
-    ) : MethodAnalyzer<BasicValue>(owner, method, OptimizationBasicInterpreter()) {
-        val spilledStacks = hashMapOf<AbstractInsnNode, List<BasicValue>>()
+    private inner class InternalAnalyzer(owner: String) :
+        FastStackAnalyzer<FixStackValue>(owner, method, FixStackInterpreter()) {
+
+        val spilledStacks = hashMapOf<AbstractInsnNode, List<FixStackValue>>()
         var maxExtraStackSize = 0; private set
 
         override fun visitControlFlowEdge(insn: Int, successor: Int): Boolean {
-            val insnNode = instructions[insn]
+            if (!skipBreakContinueGotoEdges) return true
+            val insnNode = insnsArray[insn]
             return !(insnNode is JumpInsnNode && context.breakContinueGotoNodes.contains(insnNode))
         }
 
-        override fun newFrame(nLocals: Int, nStack: Int): Frame<BasicValue> =
-                FixStackFrame(nLocals, nStack)
+        override fun newFrame(nLocals: Int, nStack: Int): Frame<FixStackValue> =
+            FixStackFrame(nLocals, nStack)
 
         private fun indexOf(node: AbstractInsnNode) = method.instructions.indexOf(node)
 
-        inner class FixStackFrame(nLocals: Int, nStack: Int) : Frame<BasicValue>(nLocals, nStack) {
-            val extraStack = Stack<BasicValue>()
+        inner class FixStackFrame(nLocals: Int, nStack: Int) : Frame<FixStackValue>(nLocals, nStack) {
+            val extraStack = Stack<FixStackValue>()
 
-            override fun init(src: Frame<out BasicValue>): Frame<BasicValue> {
+            override fun init(src: Frame<out FixStackValue>): Frame<FixStackValue> {
                 extraStack.clear()
                 extraStack.addAll((src as FixStackFrame).extraStack)
                 return super.init(src)
@@ -99,7 +120,7 @@ internal class FixStackAnalyzer(
                 super.clearStack()
             }
 
-            override fun execute(insn: AbstractInsnNode, interpreter: Interpreter<BasicValue>) {
+            override fun execute(insn: AbstractInsnNode, interpreter: Interpreter<FixStackValue>) {
                 when {
                     PseudoInsn.SAVE_STACK_BEFORE_TRY.isa(insn) ->
                         executeSaveStackBeforeTry(insn)
@@ -109,10 +130,8 @@ internal class FixStackAnalyzer(
                         executeBeforeInlineCallMarker(insn)
                     isAfterInlineMarker(insn) ->
                         executeAfterInlineCallMarker(insn)
-                    isMarkedReturn(insn) -> {
-                        // KT-9644: might throw "Incompatible return type" on non-local return, in fact we don't care.
-                        if (insn.opcode == Opcodes.RETURN) return
-                    }
+                    insn.opcode == Opcodes.RETURN ->
+                        return
                 }
 
                 super.execute(insn, interpreter)
@@ -120,43 +139,45 @@ internal class FixStackAnalyzer(
 
             val stackSizeWithExtra: Int get() = super.getStackSize() + extraStack.size
 
-            fun getStackContent(): List<BasicValue> {
-                val savedStack = arrayListOf<BasicValue>()
-                IntRange(0, super.getStackSize() - 1).mapTo(savedStack) { super.getStack(it) }
+            fun getStackContent(): List<FixStackValue> {
+                val savedStack = ArrayList<FixStackValue>()
+                for (i in 0 until super.getStackSize()) {
+                    savedStack.add(super.getStack(i))
+                }
                 savedStack.addAll(extraStack)
                 return savedStack
             }
 
-            override fun push(value: BasicValue) {
+            override fun push(value: FixStackValue) {
                 if (super.getStackSize() < maxStackSize) {
                     super.push(value)
-                }
-                else {
+                } else {
                     extraStack.add(value)
-                    maxExtraStackSize = Math.max(maxExtraStackSize, extraStack.size)
+                    maxExtraStackSize = max(maxExtraStackSize, extraStack.size)
                 }
             }
 
-            fun pushAll(values: Collection<BasicValue>) {
+            fun pushAll(values: Collection<FixStackValue>) {
                 values.forEach { push(it) }
             }
 
-            override fun pop(): BasicValue {
+            override fun pop(): FixStackValue =
                 if (extraStack.isNotEmpty()) {
-                    return extraStack.pop()
+                    extraStack.pop()
+                } else {
+                    super.pop()
                 }
-                else {
-                    return super.pop()
+
+            override fun setStack(i: Int, value: FixStackValue) {
+                if (i < super.getMaxStackSize()) {
+                    super.setStack(i, value)
+                } else {
+                    extraStack[i - maxStackSize] = value
                 }
             }
 
-            override fun getStack(i: Int): BasicValue {
-                if (i < super.getMaxStackSize()) {
-                    return super.getStack(i)
-                }
-                else {
-                    return extraStack[i - maxStackSize]
-                }
+            override fun merge(frame: Frame<out FixStackValue>, interpreter: Interpreter<FixStackValue>): Boolean {
+                throw UnsupportedOperationException("Stack normalization should not merge frames")
             }
         }
 
@@ -178,8 +199,7 @@ internal class FixStackAnalyzer(
                 val savedValues = spilledStacks[beforeInlineMarker]
                 pushAll(savedValues!!)
                 push(returnValue)
-            }
-            else {
+            } else {
                 val savedValues = spilledStacks[beforeInlineMarker]
                 pushAll(savedValues!!)
             }
@@ -197,7 +217,6 @@ internal class FixStackAnalyzer(
             saveStackAndClear(insn)
         }
     }
-
 
 
 }

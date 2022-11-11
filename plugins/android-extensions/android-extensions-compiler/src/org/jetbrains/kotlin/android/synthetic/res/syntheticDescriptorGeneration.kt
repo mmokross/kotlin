@@ -26,13 +26,11 @@ import org.jetbrains.kotlin.descriptors.impl.PropertyDescriptorImpl
 import org.jetbrains.kotlin.descriptors.impl.PropertyGetterDescriptorImpl
 import org.jetbrains.kotlin.descriptors.impl.SimpleFunctionDescriptorImpl
 import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.resolve.DescriptorFactory
 import org.jetbrains.kotlin.resolve.descriptorUtil.builtIns
 import org.jetbrains.kotlin.resolve.descriptorUtil.fqNameUnsafe
 import org.jetbrains.kotlin.resolve.source.PsiSourceElement
-import org.jetbrains.kotlin.types.KotlinType
-import org.jetbrains.kotlin.types.KotlinTypeFactory
-import org.jetbrains.kotlin.types.SimpleType
-import org.jetbrains.kotlin.types.StarProjectionImpl
+import org.jetbrains.kotlin.types.*
 
 private class XmlSourceElement(override val psi: PsiElement) : PsiSourceElement
 
@@ -46,8 +44,10 @@ internal fun genClearCacheFunction(packageFragmentDescriptor: PackageFragmentDes
             SourceElement.NO_SOURCE) {}
 
     val unitType = packageFragmentDescriptor.builtIns.unitType
-    function.initialize(receiverType, null, emptyList(), emptyList(), unitType, Modality.FINAL, Visibilities.PUBLIC)
-    return function
+    return function.initialize(
+        DescriptorFactory.createExtensionReceiverParameterForCallable(function, receiverType, Annotations.EMPTY),
+        null, emptyList(), emptyList(), emptyList(), unitType, Modality.FINAL, DescriptorVisibilities.PUBLIC
+    )
 }
 
 internal fun genPropertyForWidget(
@@ -56,19 +56,22 @@ internal fun genPropertyForWidget(
         resolvedWidget: ResolvedWidget,
         context: SyntheticElementResolveContext
 ): PropertyDescriptor {
-    val sourceEl = resolvedWidget.widget.sourceElement?.let(::XmlSourceElement) ?: SourceElement.NO_SOURCE
+    val sourceEl = resolvedWidget.widget.sourceElement?.element?.let(::XmlSourceElement) ?: SourceElement.NO_SOURCE
 
     val classDescriptor = resolvedWidget.viewClassDescriptor
     val type = classDescriptor?.let {
         val defaultType = classDescriptor.defaultType
-        if (defaultType.constructor.parameters.isEmpty())
-            defaultType
-        else
-            KotlinTypeFactory.simpleNotNullType(Annotations.EMPTY, classDescriptor,
-                                                defaultType.constructor.parameters.map(::StarProjectionImpl))
-    } ?: context.viewType
 
-    return genProperty(resolvedWidget.widget.id, receiverType, type, packageFragmentDescriptor, sourceEl, resolvedWidget.errorType)
+        if (defaultType.constructor.parameters.isEmpty()) {
+            defaultType
+        }
+        else {
+            KotlinTypeFactory.simpleNotNullType(
+                TypeAttributes.Empty, classDescriptor, defaultType.constructor.parameters.map(::StarProjectionImpl))
+        }
+    } ?: context.view
+
+    return genProperty(resolvedWidget.widget, receiverType, type, packageFragmentDescriptor, sourceEl, resolvedWidget.errorType)
 }
 
 internal fun genPropertyForFragment(
@@ -77,40 +80,38 @@ internal fun genPropertyForFragment(
         type: SimpleType,
         fragment: AndroidResource.Fragment
 ): PropertyDescriptor {
-    val sourceElement = fragment.sourceElement?.let(::XmlSourceElement) ?: SourceElement.NO_SOURCE
-    return genProperty(fragment.id, receiverType, type, packageFragmentDescriptor, sourceElement, null)
+    val sourceElement = fragment.sourceElement?.element?.let(::XmlSourceElement) ?: SourceElement.NO_SOURCE
+    return genProperty(fragment, receiverType, type, packageFragmentDescriptor, sourceElement, null)
 }
 
 private fun genProperty(
-        id: ResourceIdentifier,
+        resource: AndroidResource,
         receiverType: KotlinType,
         type: SimpleType,
         containingDeclaration: AndroidSyntheticPackageFragmentDescriptor,
         sourceElement: SourceElement,
         errorType: String?
 ): PropertyDescriptor {
-    val cacheView = type.constructor.declarationDescriptor?.fqNameUnsafe?.asString() != AndroidConst.VIEWSTUB_FQNAME
-
     val property = object : AndroidSyntheticProperty, PropertyDescriptorImpl(
             containingDeclaration,
             null,
             Annotations.EMPTY,
             Modality.FINAL,
-            Visibilities.PUBLIC,
+            DescriptorVisibilities.PUBLIC,
             false,
-            Name.identifier(id.name),
+            Name.identifier(resource.id.name),
             CallableMemberDescriptor.Kind.SYNTHESIZED,
             sourceElement,
-            /* lateinit = */ false,
+            /* lateInit = */ false,
             /* isConst = */ false,
-            /* isHeader = */ false,
-            /* isImpl = */ false,
+            /* isExpect = */ false,
+            /* isActual = */ false,
             /* isExternal = */ false,
             /* isDelegated = */ false
     ) {
         override val errorType = errorType
-        override val cacheView = cacheView
-        override val resourceId = id
+        override val shouldBeCached = type.shouldBeCached
+        override val resource = resource
     }
 
     // todo support (Mutable)List
@@ -119,18 +120,20 @@ private fun genProperty(
             flexibleType,
             emptyList<TypeParameterDescriptor>(),
             null,
-            receiverType)
+            DescriptorFactory.createExtensionReceiverParameterForCallable(property, receiverType, Annotations.EMPTY),
+            emptyList<ReceiverParameterDescriptor>()
+    )
 
     val getter = PropertyGetterDescriptorImpl(
             property,
             Annotations.EMPTY,
             Modality.FINAL,
-            Visibilities.PUBLIC,
-            false,
-            false,
-            false,
+            DescriptorVisibilities.PUBLIC,
+            /* isDefault = */ false,
+            /* isExternal = */ false,
+            /* isInline = */ false,
             CallableMemberDescriptor.Kind.SYNTHESIZED,
-            null,
+            /* original = */ null,
             SourceElement.NO_SOURCE
     )
 
@@ -141,13 +144,23 @@ private fun genProperty(
     return property
 }
 
+private val SimpleType.shouldBeCached: Boolean
+    get() {
+        val viewClassFqName = constructor.declarationDescriptor?.fqNameUnsafe?.asString() ?: return false
+        return viewClassFqName != AndroidConst.VIEWSTUB_FQNAME
+    }
+
 interface AndroidSyntheticFunction
 
 interface AndroidSyntheticProperty {
-    val errorType: String?
-    val cacheView: Boolean
-    val resourceId: ResourceIdentifier
+    val resource: AndroidResource
 
-    val isErrorType: Boolean
-        get() = errorType != null
+    val errorType: String?
+
+    // True if the View should be cached.
+    // Some views (such as ViewStub) should not be cached.
+    val shouldBeCached: Boolean
 }
+
+val AndroidSyntheticProperty.isErrorType: Boolean
+    get() = errorType != null

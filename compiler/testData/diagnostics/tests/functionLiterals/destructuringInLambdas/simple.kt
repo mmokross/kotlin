@@ -46,8 +46,8 @@ fun bar() {
         b checkType { _<String>() }
     }
 
-    foo { <!EXPECTED_PARAMETER_TYPE_MISMATCH!>(a, b): B<!> ->
+    foo <!TYPE_MISMATCH!>{ <!EXPECTED_PARAMETER_TYPE_MISMATCH!>(a, b): B<!> ->
         a checkType { _<Double>() }
         b checkType { _<Short>() }
-    }
+    }<!>
 }

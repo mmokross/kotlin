@@ -1,10 +1,12 @@
+// FIR_IDENTICAL
 // AssertionError for nested ifs with lambdas and Nothing as results
+// NI_EXPECTED_FILE
 
-val <!IMPLICIT_NOTHING_PROPERTY_TYPE!>fn<!> = if (true) {
-    <!TYPE_MISMATCH!>{ true }<!>
-} 
+val fn = if (true) {
+    { true }
+}
 else if (true) {
-    <!TYPE_MISMATCH!>{ true }<!>
+    { true }
 }
 else {
     null!!

@@ -2,23 +2,30 @@ description = 'Kotlin Test Common'
 
 apply plugin: 'kotlin-platform-common'
 
-configurePublishing(project)
-
+JvmToolchain.updateJvmTarget(project, "1.8")
 
 dependencies {
-    compile project(':kotlin-stdlib-common')
+    api kotlinStdlib("common")
+    testApi project(":kotlin-test:kotlin-test-annotations-common")
 }
 
 jar {
     manifestAttributes(manifest, project, 'Test')
 }
 
-task sourcesJar(type: Jar, dependsOn: classes) {
-    classifier = 'sources'
-    from sourceSets.main.kotlin
+configureSourcesJar()
+configureJavadocJar()
+
+tasks.withType(org.jetbrains.kotlin.gradle.dsl.KotlinCompile) {
+    kotlinOptions.freeCompilerArgs += ["-Xallow-kotlin-package", "-opt-in=kotlin.RequiresOptIn"]
 }
 
-artifacts {
-    archives sourcesJar
-    archives javadocJar
+compileKotlinCommon {
+    kotlinOptions {
+        freeCompilerArgs += [
+                "-module-name", project.name,
+                "-opt-in=kotlin.contracts.ExperimentalContracts",
+        ]
+    }
 }
+

@@ -1,3 +1,4 @@
+// WITH_STDLIB
 // properties
 
 public val publicVal: Int = 1

@@ -16,16 +16,17 @@
 
 package org.jetbrains.kotlin.cli.common.messages
 
+@JvmDefaultWithCompatibility
 interface MessageCollector {
     fun clear()
 
-    fun report(severity: CompilerMessageSeverity, message: String, location: CompilerMessageLocation? = null)
+    fun report(severity: CompilerMessageSeverity, message: String, location: CompilerMessageSourceLocation? = null)
 
     fun hasErrors(): Boolean
 
     companion object {
         val NONE: MessageCollector = object : MessageCollector {
-            override fun report(severity: CompilerMessageSeverity, message: String, location: CompilerMessageLocation?) {
+            override fun report(severity: CompilerMessageSeverity, message: String, location: CompilerMessageSourceLocation?) {
                 // Do nothing
             }
 

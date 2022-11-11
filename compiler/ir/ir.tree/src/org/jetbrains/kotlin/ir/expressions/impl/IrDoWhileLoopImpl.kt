@@ -19,31 +19,13 @@ package org.jetbrains.kotlin.ir.expressions.impl
 import org.jetbrains.kotlin.ir.expressions.IrDoWhileLoop
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrStatementOrigin
-import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.ir.types.IrType
 
-class IrDoWhileLoopImpl(startOffset: Int, endOffset: Int, type : KotlinType, origin: IrStatementOrigin?) :
-        IrLoopBase(startOffset, endOffset, type, origin), IrDoWhileLoop {
-    constructor(
-            startOffset: Int, endOffset: Int, type: KotlinType, origin: IrStatementOrigin?,
-            body: IrExpression, condition: IrExpression
-    ) : this(startOffset, endOffset, type, origin) {
-        this.condition = condition
-        this.body = body
-    }
-
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
-        return visitor.visitDoWhileLoop(this, data)
-    }
-
-    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        body?.accept(visitor, data)
-        condition.accept(visitor, data)
-    }
-
-    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        body = body?.transform(transformer, data)
-        condition = condition.transform(transformer, data)
-    }
+class IrDoWhileLoopImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override val origin: IrStatementOrigin?,
+) : IrDoWhileLoop() {
+    override lateinit var condition: IrExpression
 }

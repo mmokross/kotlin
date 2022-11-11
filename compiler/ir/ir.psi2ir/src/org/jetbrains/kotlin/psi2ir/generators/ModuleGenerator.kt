@@ -16,56 +16,80 @@
 
 package org.jetbrains.kotlin.psi2ir.generators
 
-import org.jetbrains.kotlin.ir.declarations.IrFile
+import org.jetbrains.kotlin.backend.common.CodegenUtil
+import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
+import org.jetbrains.kotlin.ir.PsiIrFileEntry
+import org.jetbrains.kotlin.ir.declarations.DescriptorMetadataSource
 import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
 import org.jetbrains.kotlin.ir.declarations.impl.IrFileImpl
 import org.jetbrains.kotlin.ir.declarations.impl.IrModuleFragmentImpl
+import org.jetbrains.kotlin.ir.linkage.IrProvider
+import org.jetbrains.kotlin.ir.symbols.IrSymbol
 import org.jetbrains.kotlin.ir.util.ExternalDependenciesGenerator
+import org.jetbrains.kotlin.ir.util.patchDeclarationParents
+import org.jetbrains.kotlin.ir.visitors.acceptVoid
 import org.jetbrains.kotlin.psi.KtFile
+import org.jetbrains.kotlin.psi2ir.transformations.insertImplicitCasts
 import org.jetbrains.kotlin.resolve.BindingContext
+import org.jetbrains.kotlin.resolve.lazy.descriptors.findPackageFragmentForFile
+import org.jetbrains.kotlin.utils.addIfNotNull
 
-class ModuleGenerator(override val context: GeneratorContext) : Generator {
-    fun generateModuleFragment(ktFiles: Collection<KtFile>): IrModuleFragment =
-            generateModuleFragmentWithoutDependencies(ktFiles).also { irModule ->
-                generateUnboundSymbolsAsDependencies(irModule)
+open class ModuleGenerator(
+    override val context: GeneratorContext,
+    private val expectDescriptorToSymbol: MutableMap<DeclarationDescriptor, IrSymbol>? = null
+) : Generator {
+
+    open fun generateModuleFragment(ktFiles: Collection<KtFile>): IrModuleFragment =
+        IrModuleFragmentImpl(context.moduleDescriptor, context.irBuiltIns).also { irModule ->
+            ktFiles.toSet().mapTo(irModule.files) { ktFile ->
+                val fileContext = context.createFileScopeContext(ktFile)
+                val irDeclarationGenerator = DeclarationGenerator(fileContext)
+                generateSingleFile(irDeclarationGenerator, ktFile, irModule)
             }
-
-    fun generateModuleFragmentWithoutDependencies(ktFiles: Collection<KtFile>): IrModuleFragment =
-            IrModuleFragmentImpl(context.moduleDescriptor, context.irBuiltIns).also { irModule ->
-                irModule.files.addAll(generateFiles(ktFiles))
-            }
-
-    private fun generateUnboundSymbolsAsDependencies(irModule: IrModuleFragment) {
-        ExternalDependenciesGenerator(context.symbolTable, context.irBuiltIns).generateUnboundSymbolsAsDependencies(irModule)
-    }
-
-    private fun generateFiles(ktFiles: Collection<KtFile>): List<IrFile> {
-        val irDeclarationGenerator = DeclarationGenerator(context)
-
-        return ktFiles.map { ktFile ->
-            generateSingleFile(irDeclarationGenerator, ktFile)
         }
+
+    fun generateUnboundSymbolsAsDependencies(irProviders: List<IrProvider>) {
+        ExternalDependenciesGenerator(context.symbolTable, irProviders).generateUnboundSymbolsAsDependencies()
     }
 
-    private fun generateSingleFile(irDeclarationGenerator: DeclarationGenerator, ktFile: KtFile): IrFileImpl {
-        val irFile = createEmptyIrFile(ktFile)
+    fun generateSingleFile(irDeclarationGenerator: DeclarationGenerator, ktFile: KtFile, module: IrModuleFragment): IrFileImpl {
+        val irFile = createEmptyIrFile(ktFile, module)
 
+        val constantValueGenerator = irDeclarationGenerator.context.constantValueGenerator
         for (ktAnnotationEntry in ktFile.annotationEntries) {
-            irFile.fileAnnotations.add(getOrFail(BindingContext.ANNOTATION, ktAnnotationEntry))
+            val annotationDescriptor = getOrFail(BindingContext.ANNOTATION, ktAnnotationEntry)
+            constantValueGenerator.generateAnnotationConstructorCall(annotationDescriptor)?.let {
+                irFile.annotations += it
+            }
         }
 
         for (ktDeclaration in ktFile.declarations) {
-            irFile.declarations.add(irDeclarationGenerator.generateMemberDeclaration(ktDeclaration))
+            irFile.declarations.addIfNotNull(irDeclarationGenerator.generateMemberDeclaration(ktDeclaration))
         }
+
+        irFile.patchDeclarationParents()
+
+        if (expectDescriptorToSymbol != null) {
+            referenceExpectsForUsedActuals(expectDescriptorToSymbol, context.symbolTable, irFile)
+        }
+
+        IrSyntheticDeclarationGenerator(context).generateSyntheticDeclarations(irFile)
+
+        insertImplicitCasts(irFile, context)
+        context.callToSubstitutedDescriptorMap.clear()
+
+        irFile.acceptVoid(AnnotationGenerator(context))
+
+        irFile.patchDeclarationParents()
 
         return irFile
     }
 
-    private fun createEmptyIrFile(ktFile: KtFile): IrFileImpl {
-        val fileEntry = context.sourceManager.getOrCreateFileEntry(ktFile)
-        val packageFragmentDescriptor = getOrFail(BindingContext.FILE_TO_PACKAGE_FRAGMENT, ktFile)
-        val irFile = IrFileImpl(fileEntry, packageFragmentDescriptor)
-        context.sourceManager.putFileEntry(irFile, fileEntry)
-        return irFile
+     fun createEmptyIrFile(ktFile: KtFile, module: IrModuleFragment): IrFileImpl {
+        val fileEntry = PsiIrFileEntry(ktFile)
+        val packageFragmentDescriptor = context.moduleDescriptor.findPackageFragmentForFile(ktFile)!!
+        return IrFileImpl(fileEntry, packageFragmentDescriptor, module).apply {
+            metadata = DescriptorMetadataSource.File(CodegenUtil.getMemberDescriptorsToGenerate(ktFile, context.bindingContext))
+        }
     }
 }

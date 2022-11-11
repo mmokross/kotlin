@@ -1,3 +1,0 @@
-3 open class A(val <bold>n: Int</bold>)
-5 	class B : A(<bold>1</bold>)
-8 	val z = A(<bold>2</bold>).n

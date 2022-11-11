@@ -1,4 +1,5 @@
 // A
+// WITH_STDLIB
 
 class A {
     companion object {

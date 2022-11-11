@@ -1,6 +1,6 @@
 // !CHECK_TYPE
 
-fun main(args : Array<String>) {
+fun main() {
     val a : Int? = null
     val b : Int? = null
     checkSubtype<Int>(a!!)
@@ -33,6 +33,6 @@ fun main(args : Array<String>) {
         }
     }
 
-    val <!UNUSED_VARIABLE!>f<!> : String = <!TYPE_MISMATCH!>a<!><!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>
-    checkSubtype<String>(<!TYPE_MISMATCH!>a<!><!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>)
+    val f : String = <!TYPE_MISMATCH!>a<!><!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!>
+    checkSubtype<String>(<!TYPE_MISMATCH!>a<!UNNECESSARY_NOT_NULL_ASSERTION!>!!<!><!>)
 }

@@ -1,5 +1,17 @@
+// IGNORE_BACKEND: WASM
+// WASM_MUTE_REASON: INLINE_ARRAY_CONSTRUCTOR
+typealias ArrayS = Array<String>
+
 fun testArray() {
     Array<String>(5) { i ->
+        if (i == 3) return
+        i.toString()
+    }
+    throw AssertionError()
+}
+
+fun testArrayAlias() {
+    ArrayS(5) { i ->
         if (i == 3) return
         i.toString()
     }
@@ -56,6 +68,7 @@ fun testDoubleArray() {
 
 fun box(): String {
     testArray()
+    testArrayAlias()
     testIntArray()
     testLongArray()
     testBooleanArray()

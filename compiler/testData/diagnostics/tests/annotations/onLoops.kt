@@ -1,3 +1,5 @@
+// FIR_IDENTICAL
+// LANGUAGE: +ProhibitSimplificationOfNonTrivialConstBooleanExpressions
 fun test() {
     @ann
     while (2 < 1) {}

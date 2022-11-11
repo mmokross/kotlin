@@ -16,13 +16,11 @@
 
 package org.jetbrains.kotlin.cli.common.modules;
 
-import com.intellij.openapi.util.io.StreamUtil;
 import com.intellij.util.SmartList;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.kotlin.cli.common.messages.MessageCollector;
 import org.jetbrains.kotlin.cli.common.messages.MessageCollectorUtil;
-import org.jetbrains.kotlin.cli.common.messages.OutputMessageUtil;
 import org.jetbrains.kotlin.modules.JavaRootPath;
 import org.jetbrains.kotlin.modules.Module;
 import org.xml.sax.Attributes;
@@ -32,7 +30,10 @@ import org.xml.sax.helpers.DefaultHandler;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.parsers.SAXParser;
 import javax.xml.parsers.SAXParserFactory;
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.List;
 
 import static org.jetbrains.kotlin.cli.common.messages.CompilerMessageSeverity.ERROR;
@@ -48,6 +49,7 @@ public class ModuleXmlParser {
     public static final String OUTPUT_DIR = "outputDir";
     public static final String FRIEND_DIR = "friendDir";
     public static final String SOURCES = "sources";
+    public static final String COMMON_SOURCES = "commonSources";
     public static final String JAVA_SOURCE_ROOTS = "javaSourceRoots";
     public static final String JAVA_SOURCE_PACKAGE_PREFIX = "packagePrefix";
     public static final String PATH = "path";
@@ -55,22 +57,16 @@ public class ModuleXmlParser {
     public static final String MODULAR_JDK_ROOT = "modularJdkRoot";
 
     @NotNull
-    public static ModuleScriptData parseModuleScript(
+    public static ModuleChunk parseModuleScript(
             @NotNull String xmlFile,
             @NotNull MessageCollector messageCollector
     ) {
-        FileInputStream stream = null;
-        try {
-            //noinspection IOResourceOpenedButNotSafelyClosed
-            stream = new FileInputStream(xmlFile);
+        try (FileInputStream stream = new FileInputStream(xmlFile)) {
             return new ModuleXmlParser(messageCollector).parse(new BufferedInputStream(stream));
         }
-        catch (FileNotFoundException e) {
+        catch (IOException e) {
             MessageCollectorUtil.reportException(messageCollector, e);
-            return ModuleScriptData.EMPTY;
-        }
-        finally {
-            StreamUtil.closeStream(stream);
+            return ModuleChunk.EMPTY;
         }
     }
 
@@ -86,10 +82,15 @@ public class ModuleXmlParser {
         this.currentState = currentState;
     }
 
-    private ModuleScriptData parse(@NotNull InputStream xml) {
+    private ModuleChunk parse(@NotNull InputStream xml) {
         try {
             setCurrentState(initial);
-            SAXParser saxParser = SAXParserFactory.newInstance().newSAXParser();
+            SAXParserFactory factory = SAXParserFactory.newInstance();
+            factory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
+            factory.setFeature("http://xml.org/sax/features/external-general-entities", false);
+            factory.setFeature("http://xml.org/sax/features/external-parameter-entities", false);
+            factory.setFeature("http://apache.org/xml/features/nonvalidating/load-external-dtd", false);
+            SAXParser saxParser = factory.newSAXParser();
             saxParser.parse(xml, new DelegatedSaxHandler() {
                 @NotNull
                 @Override
@@ -97,15 +98,15 @@ public class ModuleXmlParser {
                     return currentState;
                 }
             });
-            return new ModuleScriptData(modules);
+            return new ModuleChunk(modules);
         }
         catch (ParserConfigurationException | IOException e) {
             MessageCollectorUtil.reportException(messageCollector, e);
         }
         catch (SAXException e) {
-            messageCollector.report(ERROR, OutputMessageUtil.renderException(e), null);
+            messageCollector.report(ERROR, "Build file does not have a valid XML: " + e, null);
         }
-        return ModuleScriptData.EMPTY;
+        return ModuleChunk.EMPTY;
     }
 
     private final DefaultHandler initial = new DefaultHandler() {
@@ -159,6 +160,10 @@ public class ModuleXmlParser {
             if (SOURCES.equalsIgnoreCase(qName)) {
                 String path = getAttribute(attributes, PATH, qName);
                 moduleBuilder.addSourceFiles(path);
+            }
+            else if (COMMON_SOURCES.equalsIgnoreCase(qName)) {
+                String path = getAttribute(attributes, PATH, qName);
+                moduleBuilder.addCommonSourceFiles(path);
             }
             else if (FRIEND_DIR.equalsIgnoreCase(qName)) {
                 String path = getAttribute(attributes, PATH, qName);

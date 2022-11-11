@@ -1,71 +1,62 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.ir.declarations.impl
 
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
+import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.declarations.*
+import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
 import org.jetbrains.kotlin.ir.symbols.IrClassSymbol
-import org.jetbrains.kotlin.ir.symbols.impl.IrClassSymbolImpl
-import org.jetbrains.kotlin.ir.util.transform
-import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.utils.SmartList
-import kotlin.collections.ArrayList
+import org.jetbrains.kotlin.ir.types.IrSimpleType
+import org.jetbrains.kotlin.ir.types.IrType
+import org.jetbrains.kotlin.name.Name
 
-class IrClassImpl(
-        startOffset: Int,
-        endOffset: Int,
-        origin: IrDeclarationOrigin,
-        override val symbol: IrClassSymbol
-) : IrDeclarationBase(startOffset, endOffset, origin), IrClass {
-    constructor(startOffset: Int, endOffset: Int, origin: IrDeclarationOrigin, descriptor: ClassDescriptor) :
-            this(startOffset, endOffset, origin, IrClassSymbolImpl(descriptor))
-
-    constructor(
-            startOffset: Int, endOffset: Int, origin: IrDeclarationOrigin, descriptor: ClassDescriptor,
-            members: List<IrDeclaration>
-    ) : this(startOffset, endOffset, origin, descriptor) {
-        addAll(members)
-    }
-
+open class IrClassImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var origin: IrDeclarationOrigin,
+    final override val symbol: IrClassSymbol,
+    override var name: Name,
+    override val kind: ClassKind,
+    override var visibility: DescriptorVisibility,
+    override var modality: Modality,
+    override val isCompanion: Boolean = false,
+    override var isInner: Boolean = false,
+    override val isData: Boolean = false,
+    override val isExternal: Boolean = false,
+    override val isValue: Boolean = false,
+    override val isExpect: Boolean = false,
+    override val isFun: Boolean = false,
+    override val source: SourceElement = SourceElement.NO_SOURCE,
+    override val factory: IrFactory = IrFactoryImpl
+) : IrClass() {
     init {
         symbol.bind(this)
     }
 
-    override val descriptor: ClassDescriptor get() = symbol.descriptor
+    override lateinit var parent: IrDeclarationParent
+    override var annotations: List<IrConstructorCall> = emptyList()
+
+    @ObsoleteDescriptorBasedAPI
+    override val descriptor: ClassDescriptor
+        get() = symbol.descriptor
 
     override var thisReceiver: IrValueParameter? = null
 
     override val declarations: MutableList<IrDeclaration> = ArrayList()
 
-    override val typeParameters: MutableList<IrTypeParameter> = SmartList()
+    override var typeParameters: List<IrTypeParameter> = emptyList()
 
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitClass(this, data)
+    override var superTypes: List<IrType> = emptyList()
 
-    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        thisReceiver?.accept(visitor, data)
-        typeParameters.forEach { it.accept(visitor, data) }
-        declarations.forEach { it.accept(visitor, data) }
-    }
+    override var valueClassRepresentation: ValueClassRepresentation<IrSimpleType>? = null
 
-    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        thisReceiver = thisReceiver?.transform(transformer, data)
-        typeParameters.transform { it.transform(transformer, data) }
-        declarations.transform { it.transform(transformer, data) }
-    }
+    override var metadata: MetadataSource? = null
+
+    override var attributeOwnerId: IrAttributeContainer = this
+
+    override var sealedSubclasses: List<IrClassSymbol> = emptyList()
 }

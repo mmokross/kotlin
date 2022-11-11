@@ -34,17 +34,26 @@ Helper functions for creating [Comparator][java.util.Comparator] instances.
 
 Utility functions for concurrent programming.
 
-# Package kotlin.coroutines.experimental
+# Package kotlin.contracts
 
-Library support for coroutines, including support for lazy sequences.
+Experimental DSL for declaring custom function contracts.
 
-# Package kotlin.coroutines.experimental.intrinsics
+# Package kotlin.coroutines
+
+Basic primitives for creating and suspending coroutines: [Continuation][kotlin.coroutines.Continuation], 
+[CoroutineContext][kotlin.coroutines.CoroutineContext] interfaces, coroutine creation and suspension top-level functions.
+
+# Package kotlin.coroutines.intrinsics
 
 Low-level building blocks for libraries that provide coroutine-based APIs.
 
 # Package kotlin.dom
 
 Utility functions for working with the browser DOM.
+
+# Package kotlin.enum
+
+Utilities for working with Kotlin enum classes.
 
 # Package kotlin.experimental
 
@@ -54,6 +63,10 @@ Experimental APIs, subject to change in future versions of Kotlin.
 
 IO API for working with files and streams.
 
+# Package kotlin.io.path
+
+Convenient extensions for working with file system using [java.nio.file.Path][java.nio.file.Path].
+
 # Package kotlin.js
 
 Functions and other APIs specific to the JavaScript platform.
@@ -62,10 +75,24 @@ Functions and other APIs specific to the JavaScript platform.
 
 Functions and annotations specific to the Java platform.
 
+# Package kotlin.jvm.optionals
+
+Convenience extension functions for `java.util.Optional` to simplify Kotlin-Java interop.
+
+# Package kotlin.math
+
+Mathematical functions and constants. 
+
+The functions include trigonometric, hyperbolic, exponentiation and power, logarithmic, rounding, sign and absolute value.
+
 # Package kotlin.properties
 
 Standard implementations of delegates for [delegated properties](/docs/reference/delegated-properties.html)
 and helper functions for implementing custom delegates.
+
+# Package kotlin.random
+
+Provides the default generator of pseudo-random values, the repeatable generator, and a base class for other RNG implementations.
 
 # Package kotlin.ranges
 
@@ -119,6 +146,10 @@ Functions for writing test assertions.
 # Package kotlin.text
 
 Functions for working with text and regular expressions.
+
+# Package kotlin.time
+
+API for representing [Duration][kotlin.time.Duration] values and experimental API for measuring time intervals.
 
 # Package org.khronos.webgl
 

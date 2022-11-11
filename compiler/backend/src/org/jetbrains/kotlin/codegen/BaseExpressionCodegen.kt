@@ -17,32 +17,35 @@
 package org.jetbrains.kotlin.codegen
 
 import org.jetbrains.kotlin.codegen.inline.NameGenerator
+import org.jetbrains.kotlin.codegen.inline.ReifiedTypeInliner.Companion.putReifiedOperationMarker
+import org.jetbrains.kotlin.codegen.inline.ReifiedTypeInliner.OperationKind
 import org.jetbrains.kotlin.codegen.inline.ReifiedTypeParametersUsages
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.descriptors.TypeParameterDescriptor
-import org.jetbrains.kotlin.psi.KtElement
+import org.jetbrains.kotlin.types.TypeSystemCommonBackendContext
+import org.jetbrains.kotlin.types.model.KotlinTypeMarker
+import org.jetbrains.kotlin.types.model.TypeParameterMarker
 import org.jetbrains.org.objectweb.asm.commons.InstructionAdapter
 
 interface BaseExpressionCodegen {
-
-    val frameMap: FrameMap
+    val frameMap: FrameMapBase<*>
 
     val visitor: InstructionAdapter
 
     val inlineNameGenerator: NameGenerator
 
-    val lastLineNumber: Int
+    val typeSystem: TypeSystemCommonBackendContext
 
-    fun consumeReifiedOperationMarker(typeParameterDescriptor: TypeParameterDescriptor)
+    val lastLineNumber: Int
 
     fun propagateChildReifiedTypeParametersUsages(reifiedTypeParametersUsages: ReifiedTypeParametersUsages)
 
-    fun pushClosureOnStack(
-            classDescriptor: ClassDescriptor,
-            putThis: Boolean,
-            callGenerator: CallGenerator,
-            functionReferenceReceiver: StackValue?
-    )
+    fun markLineNumberAfterInlineIfNeeded(registerLineNumberAfterwards: Boolean)
 
-    fun markLineNumberAfterInlineIfNeeded()
+    fun consumeReifiedOperationMarker(typeParameter: TypeParameterMarker)
+}
+
+fun BaseExpressionCodegen.putReifiedOperationMarkerIfTypeIsReifiedParameter(type: KotlinTypeMarker, operationKind: OperationKind): Boolean {
+    val (typeParameter, second) = typeSystem.extractReificationArgument(type) ?: return false
+    consumeReifiedOperationMarker(typeParameter)
+    putReifiedOperationMarker(operationKind, second, visitor)
+    return true
 }

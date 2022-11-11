@@ -1,6 +1,6 @@
 // FULL_JDK
-// WITH_RUNTIME
-// IGNORE_BACKEND: JS, NATIVE
+// WITH_STDLIB
+// TARGET_BACKEND: JVM
 
 import java.util.concurrent.locks.ReentrantReadWriteLock
 import kotlin.concurrent.read

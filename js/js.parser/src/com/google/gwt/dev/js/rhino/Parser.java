@@ -18,7 +18,7 @@
  * Copyright (C) 1997-1999 Netscape Communications Corporation. All
  * Rights Reserved.
  *
- * Contributor(s): 
+ * Contributor(s):
  * Mike Ang
  * Mike McCabe
  *
@@ -37,10 +37,11 @@
 
 package com.google.gwt.dev.js.rhino;
 
-import org.jetbrains.kotlin.js.parser.ParserEvents;
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
-import java.util.Observable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class implements the JavaScript parser.
@@ -51,10 +52,19 @@ import java.util.Observable;
  * @see TokenStream
  */
 
-public class Parser extends Observable {
+public class Parser {
+    private List<ParserListener> listeners;
+
     public Parser(IRFactory nf, boolean insideFunction) {
         this.nf = nf;
         this.insideFunction = insideFunction;
+    }
+
+    public void addListener(ParserListener listener) {
+        if (listeners == null) {
+            listeners = new ArrayList<>();
+        }
+        listeners.add(listener);
     }
 
     private void mustMatchToken(TokenStream ts, int toMatch, String messageId) throws IOException, JavaScriptException {
@@ -167,7 +177,11 @@ public class Parser extends Observable {
     }
 
     private Node function(TokenStream ts, boolean isExpr) throws IOException, JavaScriptException {
-        notifyObservers(new ParserEvents.OnFunctionParsingStart());
+        if (listeners != null) {
+            for (ParserListener listener : listeners) {
+                listener.functionStarted();
+            }
+        }
         CodePosition basePosition = ts.tokenPosition;
 
         Node nameNode;
@@ -180,7 +194,7 @@ public class Parser extends Observable {
                     // by '(', assume <name> starts memberExpr
                     Node memberExprHead = nameNode;
                     nameNode = null;
-                    memberExprNode = memberExprTail(ts, false, memberExprHead, basePosition);
+                    memberExprNode = memberExprTail(ts, false, memberExprHead);
                 }
                 mustMatchToken(ts, TokenStream.LP, "msg.no.paren.parms");
             }
@@ -214,10 +228,9 @@ public class Parser extends Observable {
 
             if (!ts.matchToken(TokenStream.GWT)) {
                 do {
-                    CodePosition namePosition = ts.tokenPosition;
                     mustMatchToken(ts, TokenStream.NAME, "msg.no.parm");
                     String s = ts.getString();
-                    args.addChildToBack(nf.createName(s, namePosition));
+                    args.addChildToBack(nf.createName(s, ts.tokenPosition));
                 }
                 while (ts.matchToken(TokenStream.COMMA));
 
@@ -226,6 +239,7 @@ public class Parser extends Observable {
 
             mustMatchToken(ts, TokenStream.LC, "msg.no.brace.body");
             body = parseFunctionBody(ts);
+            body.setPosition(ts.tokenPosition);
             mustMatchToken(ts, TokenStream.RC, "msg.no.brace.after.body");
             // skip the last EOL so nested functions work...
         }
@@ -245,7 +259,11 @@ public class Parser extends Observable {
             wellTerminated(ts, TokenStream.FUNCTION);
         }
 
-        notifyObservers(new ParserEvents.OnFunctionParsingEnd(ts));
+        if (listeners != null) {
+            for (ParserListener listener : listeners) {
+                listener.functionEnded(ts);
+            }
+        }
         return pn;
     }
 
@@ -315,7 +333,13 @@ public class Parser extends Observable {
     private Node statement(TokenStream ts) throws IOException {
         CodePosition position = ts.lastPosition;
         try {
-            return statementHelper(ts);
+            Comment commentsBefore = getComments(ts);
+            ts.collectCommentsAfter();
+            Node result = statementHelper(ts);
+            result.setCommentsBeforeNode(commentsBefore);
+            ts.collectCommentsAfter();
+            result.setCommentsAfterNode(getComments(ts));
+            return result;
         }
         catch (JavaScriptException e) {
             // skip to end of statement
@@ -574,6 +598,7 @@ public class Parser extends Observable {
                 }
                 break;
             }
+
             case TokenStream.RETURN: {
                 Node retExpr = null;
                 int lineno;
@@ -674,6 +699,7 @@ public class Parser extends Observable {
                 break;
             }
         }
+
         ts.matchToken(TokenStream.SEMI);
 
         return pn;
@@ -707,32 +733,42 @@ public class Parser extends Observable {
         return pn;
     }
 
-    private Node expr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
+    public Node expr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
         Node pn = assignExpr(ts, inForInit);
+
+
         while (ts.matchToken(TokenStream.COMMA)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.COMMA, pn, assignExpr(ts, inForInit), position);
         }
+
         return pn;
     }
 
     private Node assignExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
+        Comment commentBeforeNode = getComments(ts);
+
         Node pn = condExpr(ts, inForInit);
+
+        pn.setCommentsBeforeNode(commentBeforeNode);
 
         if (ts.matchToken(TokenStream.ASSIGN)) {
             // omitted: "invalid assignment left-hand side" check.
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.ASSIGN, ts.getOp(), pn, assignExpr(ts, inForInit), position);
         }
+
+        ts.collectCommentsAfter();
+        pn.setCommentsAfterNode(getComments(ts));
 
         return pn;
     }
 
     private Node condExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = orExpr(ts, inForInit);
 
         if (ts.matchToken(TokenStream.HOOK)) {
+            CodePosition position = ts.tokenPosition;
             Node ifTrue = assignExpr(ts, false);
             mustMatchToken(ts, TokenStream.COLON, "msg.no.colon.cond");
             Node ifFalse = assignExpr(ts, inForInit);
@@ -743,9 +779,9 @@ public class Parser extends Observable {
     }
 
     private Node orExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = andExpr(ts, inForInit);
         while (ts.matchToken(TokenStream.OR)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.OR, pn, andExpr(ts, inForInit), position);
         }
 
@@ -753,9 +789,9 @@ public class Parser extends Observable {
     }
 
     private Node andExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = bitOrExpr(ts, inForInit);
         while (ts.matchToken(TokenStream.AND)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.AND, pn, bitOrExpr(ts, inForInit), position);
         }
 
@@ -763,44 +799,46 @@ public class Parser extends Observable {
     }
 
     private Node bitOrExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = bitXorExpr(ts, inForInit);
         while (ts.matchToken(TokenStream.BITOR)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.BITOR, pn, bitXorExpr(ts, inForInit), position);
         }
         return pn;
     }
 
     private Node bitXorExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = bitAndExpr(ts, inForInit);
         while (ts.matchToken(TokenStream.BITXOR)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.BITXOR, pn, bitAndExpr(ts, inForInit), position);
         }
         return pn;
     }
 
     private Node bitAndExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = eqExpr(ts, inForInit);
         while (ts.matchToken(TokenStream.BITAND)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.BITAND, pn, eqExpr(ts, inForInit), position);
         }
         return pn;
     }
 
     private Node eqExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = relExpr(ts, inForInit);
+
         while (ts.matchToken(TokenStream.EQOP)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.EQOP, ts.getOp(), pn, relExpr(ts, inForInit), position);
         }
         return pn;
     }
 
     private Node relExpr(TokenStream ts, boolean inForInit) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = shiftExpr(ts);
+        CodePosition position = ts.tokenPosition;
+
         while (ts.matchToken(TokenStream.RELOP)) {
             int op = ts.getOp();
             if (inForInit && op == TokenStream.IN) {
@@ -809,26 +847,26 @@ public class Parser extends Observable {
             }
 
             pn = nf.createBinary(TokenStream.RELOP, op, pn, shiftExpr(ts), position);
+            position = ts.tokenPosition;
         }
         return pn;
     }
 
     private Node shiftExpr(TokenStream ts) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         Node pn = addExpr(ts);
         while (ts.matchToken(TokenStream.SHOP)) {
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(TokenStream.SHOP, ts.getOp(), pn, addExpr(ts), position);
         }
         return pn;
     }
 
     private Node addExpr(TokenStream ts) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         int tt;
         Node pn = mulExpr(ts);
 
         while ((tt = ts.getToken()) == TokenStream.ADD || tt == TokenStream.SUB) {
-            // flushNewLines
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(tt, pn, mulExpr(ts), position);
         }
         ts.ungetToken(tt);
@@ -837,13 +875,13 @@ public class Parser extends Observable {
     }
 
     private Node mulExpr(TokenStream ts) throws IOException, JavaScriptException {
-        CodePosition position = getNextTokenPosition(ts);
         int tt;
 
         Node pn = unaryExpr(ts);
 
         while ((tt = ts.peekToken()) == TokenStream.MUL || tt == TokenStream.DIV || tt == TokenStream.MOD) {
             tt = ts.getToken();
+            CodePosition position = ts.tokenPosition;
             pn = nf.createBinary(tt, pn, unaryExpr(ts), position);
         }
 
@@ -870,8 +908,13 @@ public class Parser extends Observable {
             case TokenStream.DEC:
                 return nf.createUnary(tt, TokenStream.PRE, memberExpr(ts, true), position);
 
-            case TokenStream.DELPROP:
-                return nf.createUnary(TokenStream.DELPROP, unaryExpr(ts), position);
+            case TokenStream.DELPROP: {
+                Node argument = unaryExpr(ts);
+                if (!isValidDeleteArgument(argument)) {
+                    Context.reportError("msg.wrong.delete argument", argument.getPosition(), ts.lastPosition);
+                }
+                return nf.createUnary(TokenStream.DELPROP, argument, position);
+            }
 
             case TokenStream.ERROR:
                 break;
@@ -894,11 +937,16 @@ public class Parser extends Observable {
                 if (((peeked = ts.peekToken()) == TokenStream.INC || peeked == TokenStream.DEC)
                     && ts.getLineno() == lineno) {
                     int pf = ts.getToken();
+                    position = ts.tokenPosition;
                     return nf.createUnary(pf, TokenStream.POST, pn, position);
                 }
                 return pn;
         }
         return nf.createName("err", position); // Only reached on error. Try to continue.
+    }
+
+    private static boolean isValidDeleteArgument(@NotNull Node node) {
+        return node.type == TokenStream.GETPROP || node.type == TokenStream.GETELEM;
     }
 
     private Node argumentList(TokenStream ts, Node listNode) throws IOException, JavaScriptException {
@@ -909,8 +957,7 @@ public class Parser extends Observable {
         if (!matched) {
             do {
                 listNode.addChildToBack(assignExpr(ts, false));
-            }
-            while (ts.matchToken(TokenStream.COMMA));
+            } while (ts.matchToken(TokenStream.COMMA));
 
             mustMatchToken(ts, TokenStream.GWT, "msg.no.paren.arg");
         }
@@ -960,16 +1007,17 @@ public class Parser extends Observable {
             pn = primaryExpr(ts);
         }
 
-        return memberExprTail(ts, allowCallSyntax, pn, position);
+        return memberExprTail(ts, allowCallSyntax, pn);
     }
 
     private Node memberExprTail(
             TokenStream ts, boolean allowCallSyntax,
-            Node pn, CodePosition position
+            Node pn
     ) throws IOException, JavaScriptException {
         lastExprEndLine = ts.getLineno();
         int tt;
         while ((tt = ts.getToken()) > TokenStream.EOF) {
+            CodePosition position = ts.tokenPosition;
             if (tt == TokenStream.DOT) {
                 ts.treatKeywordAsIdentifier = true;
                 mustMatchToken(ts, TokenStream.NAME, "msg.no.name.after.dot");
@@ -1006,6 +1054,15 @@ public class Parser extends Observable {
     }
 
     public Node primaryExpr(TokenStream ts) throws IOException, JavaScriptException {
+        Comment commentsBeforeNode = getComments(ts);
+        Node node = primaryExprHelper(ts);
+        node.setCommentsBeforeNode(commentsBeforeNode);
+        ts.collectCommentsAfter();
+        node.setCommentsAfterNode(getComments(ts));
+        return node;
+    }
+
+    private Node primaryExprHelper(TokenStream ts) throws IOException, JavaScriptException {
         int tt;
 
         Node pn;
@@ -1108,6 +1165,13 @@ public class Parser extends Observable {
                 mustMatchToken(ts, TokenStream.GWT, "msg.no.paren");
                 return pn;
 
+            case TokenStream.IMPORT:
+                // for import() and import.meta syntax
+                if (ts.peekToken() != TokenStream.LP && ts.peekToken() != TokenStream.DOT) {
+                    reportError(ts, "msg.syntax");
+                }
+                return nf.createName(TokenStream.tokenToName(TokenStream.IMPORT), position);
+
             case TokenStream.NAME:
                 String name = ts.getString();
                 return nf.createName(name, position);
@@ -1144,11 +1208,12 @@ public class Parser extends Observable {
         return null; // should never reach here
     }
 
-    private static CodePosition getNextTokenPosition(TokenStream ts) throws IOException, JavaScriptException {
-        int tt = ts.getToken();
-        CodePosition result = ts.tokenPosition;
-        ts.ungetToken(tt);
-        return result;
+    private Comment getComments(TokenStream ts) {
+        Comment comment = ts.getHeadComment();
+        if (comment != null) {
+            ts.releaseComments();
+        }
+        return comment;
     }
 
     private int lastExprEndLine; // Hack to handle function expr termination.

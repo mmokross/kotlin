@@ -13,41 +13,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package org.jetbrains.kotlin.ir.util
 
-import org.jetbrains.kotlin.descriptors.DeclarationDescriptor
-import org.jetbrains.kotlin.descriptors.ModuleDescriptor
-import org.jetbrains.kotlin.descriptors.PackageFragmentDescriptor
-import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
-import org.jetbrains.kotlin.ir.declarations.IrExternalPackageFragment
-import org.jetbrains.kotlin.ir.declarations.IrModuleFragment
-import org.jetbrains.kotlin.ir.descriptors.IrBuiltIns
+import org.jetbrains.kotlin.analyzer.CompilationErrorException
+import org.jetbrains.kotlin.ir.declarations.IrDeclaration
+import org.jetbrains.kotlin.ir.linkage.IrProvider
+import org.jetbrains.kotlin.ir.linkage.KotlinIrLinkerInternalException
+import org.jetbrains.kotlin.ir.symbols.IrSymbol
 
-class ExternalDependenciesGenerator(val symbolTable: SymbolTable, val irBuiltIns: IrBuiltIns) {
-    private val stubGenerator = DeclarationStubGenerator(symbolTable, IrDeclarationOrigin.IR_EXTERNAL_DECLARATION_STUB)
+class ExternalDependenciesGenerator(
+    val symbolTable: SymbolTable,
+    private val irProviders: List<IrProvider>
+) {
 
-    fun generateUnboundSymbolsAsDependencies(irModule: IrModuleFragment) {
-        val collector = DependenciesCollector()
-        collector.collectTopLevelDescriptorsForUnboundSymbols(symbolTable)
+    fun generateUnboundSymbolsAsDependencies() {
+        // There should be at most one DeclarationStubGenerator (none in closed world?)
+        irProviders.singleOrNull { it is DeclarationStubGenerator }?.let {
+            (it as DeclarationStubGenerator).unboundSymbolGeneration = true
+        }
 
-        collector.dependencyModules.mapTo(irModule.dependencyModules) { moduleDescriptor ->
-            generateModuleStub(collector, moduleDescriptor)
+        // Deserializing a reference may lead to new unbound references, so we loop until none are left.
+        try {
+            var unbound = setOf<IrSymbol>()
+            do {
+                val prevUnbound = unbound
+                unbound = symbolTable.allUnbound
+                for (symbol in unbound) {
+                    // Symbol could get bound as a side effect of deserializing other symbols.
+                    if (!symbol.isBound) {
+                        irProviders.getDeclaration(symbol)
+                    }
+                }
+                // We wait for the unbound to stabilize on fake overrides.
+            } while (unbound != prevUnbound)
+        } catch (ex: KotlinIrLinkerInternalException) {
+            throw CompilationErrorException()
         }
     }
-
-    private fun generateModuleStub(collector: DependenciesCollector, moduleDescriptor: ModuleDescriptor): IrModuleFragment =
-            stubGenerator.generateEmptyModuleFragmentStub(moduleDescriptor, irBuiltIns).also { irDependencyModule ->
-                collector.getPackageFragments(moduleDescriptor).mapTo(irDependencyModule.externalPackageFragments) { packageFragmentDescriptor ->
-                    generatePackageStub(packageFragmentDescriptor, collector.getTopLevelDescriptors(packageFragmentDescriptor))
-                }
-            }
-
-    private fun generatePackageStub(packageFragmentDescriptor: PackageFragmentDescriptor, topLevelDescriptors: Collection<DeclarationDescriptor>): IrExternalPackageFragment =
-            stubGenerator.generateEmptyExternalPackageFragmentStub(packageFragmentDescriptor).also { irExternalPackageFragment ->
-                topLevelDescriptors.mapTo(irExternalPackageFragment.declarations) {
-                    stubGenerator.generateMemberStub(it)
-                }
-            }
-
 }
+
+fun List<IrProvider>.getDeclaration(symbol: IrSymbol): IrDeclaration? =
+    firstNotNullOfOrNull { provider ->
+        provider.getDeclaration(symbol)
+    }

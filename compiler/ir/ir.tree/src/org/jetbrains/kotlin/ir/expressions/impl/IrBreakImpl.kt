@@ -18,15 +18,11 @@ package org.jetbrains.kotlin.ir.expressions.impl
 
 import org.jetbrains.kotlin.ir.expressions.IrBreak
 import org.jetbrains.kotlin.ir.expressions.IrLoop
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.types.KotlinType
+import org.jetbrains.kotlin.ir.types.IrType
 
 class IrBreakImpl(
-        startOffset: Int,
-        endOffset: Int,
-        type: KotlinType,
-        loop: IrLoop
-) : IrBreakContinueBase(startOffset, endOffset, type, loop), IrBreak {
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitBreak(this, data)
-}
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var type: IrType,
+    override var loop: IrLoop,
+) : IrBreak()

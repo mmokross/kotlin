@@ -17,6 +17,7 @@
 package org.jetbrains.kotlin.daemon.common
 
 import java.io.File
+import java.nio.file.Files
 import java.rmi.registry.LocateRegistry
 
 
@@ -54,7 +55,7 @@ fun walkDaemons(registryDir: File,
                 filter: (File, Int) -> Boolean = { _, _ -> true },
                 report: (DaemonReportCategory, String) -> Unit = { _, _ -> }
 ): Sequence<DaemonWithMetadata> {
-    val classPathDigest = compilerId.compilerClasspath.map { File(it).absolutePath }.distinctStringsDigest().toHexString()
+    val classPathDigest = compilerId.digest()
     val portExtractor = makePortFromRunFilenameExtractor(classPathDigest)
     return registryDir.walk()
             .map { Pair(it, portExtractor(it.name)) }
@@ -92,13 +93,13 @@ private inline fun tryConnectToDaemon(port: Int, report: (DaemonReportCategory, 
         val daemon = LocateRegistry.getRegistry(LoopbackNetworkInterface.loopbackInetAddressName, port, LoopbackNetworkInterface.clientLoopbackSocketFactory)
                 ?.lookup(COMPILER_SERVICE_RMI_NAME)
         when (daemon) {
-            null -> report(DaemonReportCategory.EXCEPTION, "daemon not found")
+            null -> report(DaemonReportCategory.INFO, "daemon not found")
             is CompileService -> return daemon
-            else -> report(DaemonReportCategory.EXCEPTION, "Unable to cast compiler service, actual class received: ${daemon::class.java.name}")
+            else -> report(DaemonReportCategory.INFO, "Unable to cast compiler service, actual class received: ${daemon::class.java.name}")
         }
     }
     catch (e: Throwable) {
-        report(DaemonReportCategory.EXCEPTION, "cannot connect to registry: " + (e.cause?.message ?: e.message ?: "unknown error"))
+        report(DaemonReportCategory.INFO, "cannot connect to registry: " + (e.cause?.message ?: e.message ?: "unknown error"))
     }
     return null
 }
@@ -106,7 +107,12 @@ private inline fun tryConnectToDaemon(port: Int, report: (DaemonReportCategory, 
 private const val validFlagFileKeywordChars = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
 fun makeAutodeletingFlagFile(keyword: String = "compiler-client", baseDir: File? = null): File {
-    val flagFile = File.createTempFile("kotlin-${keyword.filter { validFlagFileKeywordChars.contains(it.toLowerCase()) }}-", "-is-running", baseDir?.takeIf { it.isDirectory && it.exists() })
+    val prefix = "kotlin-${keyword.filter { validFlagFileKeywordChars.contains(it.lowercaseChar()) }}-"
+    val flagFile = if (baseDir?.isDirectory == true)
+        Files.createTempFile(baseDir.toPath(), prefix, "-is-running").toFile()
+    else
+        Files.createTempFile(prefix, "-is-running").toFile()
+
     flagFile.deleteOnExit()
     return flagFile
 }

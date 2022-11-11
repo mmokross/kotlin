@@ -1,173 +1,259 @@
 package org.jetbrains.kotlin.gradle
 
-import org.jetbrains.kotlin.gradle.util.checkBytecodeContains
-import org.junit.Test
-import java.io.File
-import kotlin.test.assertTrue
+import org.gradle.api.logging.LogLevel
+import org.gradle.api.logging.configuration.WarningMode
+import org.gradle.util.GradleVersion
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompilerExecutionStrategy
+import org.jetbrains.kotlin.gradle.testbase.*
+import org.junit.jupiter.api.DisplayName
 
-class SimpleKotlinGradleIT : BaseGradleIT() {
+@JvmGradlePluginTests
+@DisplayName("KGP simple tests")
+class SimpleKotlinGradleIT : KGPBaseTest() {
 
-    companion object {
-        private const val GRADLE_VERSION = "2.10"
-    }
-
-    @Test
-    fun testSimpleCompile() {
-        val project = Project("simpleProject", GRADLE_VERSION)
-
-        project.build("compileDeployKotlin", "build") {
-            assertSuccessful()
-            assertContains("Finished executing kotlin compiler using daemon strategy")
-            assertReportExists("build/reports/tests/classes/demo.TestSource.html")
-            assertContains(":compileKotlin", ":compileTestKotlin", ":compileDeployKotlin")
-        }
-
-        project.build("compileDeployKotlin", "build") {
-            assertSuccessful()
-            assertContains(":compileKotlin UP-TO-DATE", ":compileTestKotlin UP-TO-DATE", ":compileDeployKotlin UP-TO-DATE", ":compileJava UP-TO-DATE")
-        }
-    }
-
-    @Test
-    fun testSuppressWarnings() {
-        val project = Project("suppressWarnings", GRADLE_VERSION)
-
-        project.build("build") {
-            assertSuccessful()
-            assertContains(":compileKotlin")
-            assertNotContains("""w: [^\r\n]*?\.kt""".toRegex())
-        }
-    }
-
-    @Test
-    fun testKotlinCustomDirectory() {
-        Project("customSrcDir", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-        }
-    }
-
-    @Test
-    fun testKotlinExtraJavaSrc() {
-        Project("additionalJavaSrc", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-        }
-    }
-
-    @Test
-    fun testLanguageVersion() {
-        Project("languageVersion", GRADLE_VERSION).build("build") {
-            assertFailed()
-            assertContains("This type is sealed")
-        }
-    }
-    @Test
-    fun testJvmTarget() {
-        Project("jvmTarget", GRADLE_VERSION).build("build") {
-            assertFailed()
-            assertContains("Unknown JVM target version: 1.7")
-        }
-    }
-
-    @Test
-    fun testCustomJdk() {
-        Project("customJdk", GRADLE_VERSION).build("build") {
-            assertFailed()
-            assertContains("Unresolved reference: stream")
-            assertNotContains("AutoCloseable")
-        }
-    }
-
-    @Test
-    fun testGradleSubplugin() {
-        val project = Project("kotlinGradleSubplugin", GRADLE_VERSION)
-
-        project.build("compileKotlin", "build") {
-            assertSuccessful()
-            assertContains("ExampleSubplugin loaded")
-            assertContains("Project component registration: exampleValue")
-            assertContains(":compileKotlin")
-        }
-
-        project.build("compileKotlin", "build") {
-            assertSuccessful()
-            assertContains("ExampleSubplugin loaded")
-            assertNotContains("Project component registration: exampleValue")
-            assertContains(":compileKotlin UP-TO-DATE")
-        }
-    }
-
-    @Test
-    fun testDestinationDirReferencedDuringEvaluation() {
-        Project("destinationDirReferencedDuringEvaluation", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-            assertContains("GreeterTest PASSED")
-        }
-    }
-
-    @Test
-    fun testAllOpenPlugin() {
-        Project("allOpenSimple", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-
-            val classesDir = File(project.projectDir, "build/classes/main")
-            val openClass = File(classesDir, "test/OpenClass.class")
-            val closedClass = File(classesDir, "test/ClosedClass.class")
-            assertTrue(openClass.exists())
-            assertTrue(closedClass.exists())
-
-            checkBytecodeContains(openClass,
-                    "public class test/OpenClass {",
-                    "public method()V")
-
-            checkBytecodeContains(closedClass,
-                    "public final class test/ClosedClass {",
-                    "public final method()V")
-        }
-    }
-
-    @Test
-    fun testKotlinSpringPlugin() {
-        Project("allOpenSpring", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-
-            val classesDir = File(project.projectDir, "build/classes/main")
-            val openClass = File(classesDir, "test/OpenClass.class")
-            val closedClass = File(classesDir, "test/ClosedClass.class")
-            assertTrue(openClass.exists())
-            assertTrue(closedClass.exists())
-
-            checkBytecodeContains(openClass,
-                    "public class test/OpenClass {",
-                    "public method()V")
-
-            checkBytecodeContains(closedClass,
-                    "public final class test/ClosedClass {",
-                    "public final method()V")
-        }
-    }
-
-    @Test
-    fun testKotlinJpaPlugin() {
-        Project("noArgJpa", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-
-            val classesDir = File(project.projectDir, "build/classes/main")
-
-            fun checkClass(name: String) {
-                val testClass = File(classesDir, "test/$name.class")
-                assertTrue(testClass.exists())
-                checkBytecodeContains(testClass, "public <init>()V")
+    @GradleTest
+    @DisplayName("On second run common tasks should be up-to-date")
+    fun testSimpleCompile(gradleVersion: GradleVersion) {
+        project(
+            projectName = "simpleProject",
+            gradleVersion = gradleVersion,
+            buildOptions = defaultBuildOptions.copy(logLevel = LogLevel.DEBUG),
+        ) {
+            build("compileDeployKotlin", "build") {
+                assertOutputContains("Finished executing kotlin compiler using ${KotlinCompilerExecutionStrategy.DAEMON} strategy")
+                assertFileInProjectExists("build/reports/tests/test/classes/demo.TestSource.html")
+                assertTasksExecuted(":compileKotlin", ":compileTestKotlin", ":compileDeployKotlin")
             }
 
-            checkClass("Test")
-            checkClass("Test2")
+            build("compileDeployKotlin", "build") {
+                assertTasksUpToDate(
+                    ":compileKotlin",
+                    ":compileTestKotlin",
+                    ":compileDeployKotlin",
+                    ":compileJava"
+                )
+            }
         }
     }
 
-    @Test
-    fun testSamWithReceiverSimple() {
-        Project("samWithReceiverSimple", GRADLE_VERSION).build("build") {
-            assertSuccessful()
+    @GradleTest
+    @DisplayName("Plugin allows to suppress all warnings")
+    fun testSuppressWarnings(gradleVersion: GradleVersion) {
+        project("suppressWarnings", gradleVersion) {
+            build("build") {
+                assertTasksExecuted(":compileKotlin")
+                assertOutputDoesNotContain("""w: [^\r\n]*?\.kt""".toRegex())
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Plugin should allow to add custom Kotlin directory")
+    fun testKotlinCustomDirectory(gradleVersion: GradleVersion) {
+        project("customSrcDir", gradleVersion) {
+            build("build")
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Plugin should correctly handle additional java source directories")
+    fun testKotlinExtraJavaSrc(gradleVersion: GradleVersion) {
+        project("additionalJavaSrc", gradleVersion) {
+            build("build")
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Using newer language features with older api level should fail the build")
+    fun testLanguageVersion(gradleVersion: GradleVersion) {
+        project("languageVersion", gradleVersion) {
+            buildAndFail("build") {
+                assertOutputContains("Suspend function type is allowed as a supertype only since version 1.6")
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Compilation should fail on unknown JVM target")
+    fun testJvmTarget(gradleVersion: GradleVersion) {
+        project("jvmTarget", gradleVersion) {
+            buildAndFail("build") {
+                assertOutputContains("Unknown Kotlin JVM target: 1.7")
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Should produce '.kotlin_module' file with specified name")
+    fun testModuleName(gradleVersion: GradleVersion) {
+        project("moduleName", gradleVersion) {
+            build("build") {
+                assertFileInProjectExists("build/classes/kotlin/main/META-INF/FLAG.kotlin_module")
+                assertFileInProjectNotExists("build/classes/kotlin/main/META-INF/moduleName.kotlin_module")
+                assertOutputDoesNotContain("Argument -module-name is passed multiple times")
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Compile task destination dir should be configured on configuration phase")
+    fun testDestinationDirReferencedDuringEvaluation(gradleVersion: GradleVersion) {
+        project("destinationDirReferencedDuringEvaluation", gradleVersion) {
+            build("build") {
+                assertOutputContains("foo.GreeterTest > testHelloWorld PASSED")
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Plugin correctly handle redefined build dir location")
+    fun testBuildDirLazyEvaluation(gradleVersion: GradleVersion) {
+        project("kotlinProject", gradleVersion) {
+            // Change the build directory in the end of the build script:
+            val customBuildDirName = "customBuild"
+            buildGradle.append(
+                "buildDir = '$customBuildDirName'"
+            )
+
+            build("build") {
+                assertDirectoryInProjectExists("$customBuildDirName/classes")
+                assertFileInProjectNotExists("build")
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Should correctly work with Groovy lang modules")
+    fun testGroovyInterop(gradleVersion: GradleVersion) {
+        project("groovyInterop", gradleVersion) {
+            build("build") {
+                assertTasksExecuted(":test")
+                assertOutputContains("GroovyInteropTest > parametersInInnerClassConstructor PASSED")
+                assertOutputContains("GroovyInteropTest > classWithReferenceToInner PASSED")
+                assertOutputContains("GroovyInteropTest > groovyTraitAccessor PASSED")
+                assertOutputContains("GroovyInteropTest > parametersInEnumConstructor PASSED")
+            }
+        }
+    }
+
+    //Proguard corrupts RuntimeInvisibleParameterAnnotations/RuntimeVisibleParameterAnnotations tables:
+    // https://sourceforge.net/p/proguard/bugs/735/
+    // Gradle 7 compatibility issue: https://github.com/Guardsquare/proguard/issues/136
+    @GradleTest
+    @GradleTestVersions(maxVersion = TestVersions.Gradle.G_6_8)
+    @DisplayName("Should correctly interop with ProGuard")
+    fun testInteropWithProguarded(gradleVersion: GradleVersion) {
+        project(
+            "interopWithProguarded",
+            gradleVersion,
+            buildOptions = defaultBuildOptions.copy(warningMode = WarningMode.Summary)
+        ) {
+            build("build") {
+                assertTasksExecuted(":test")
+                assertOutputContains("InteropWithProguardedTest > parametersInInnerKotlinClassConstructor PASSED")
+                assertOutputContains("InteropWithProguardedTest > parametersInInnerJavaClassConstructor PASSED")
+                assertOutputContains("InteropWithProguardedTest > parametersInJavaEnumConstructor PASSED")
+                assertOutputContains("InteropWithProguardedTest > parametersInKotlinEnumConstructor PASSED")
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Should correctly work with Scala lang modules")
+    fun testScalaInterop(gradleVersion: GradleVersion) {
+        project("scalaInterop", gradleVersion) {
+            build("build") {
+                assertTasksExecuted(":test")
+                assertOutputContains("ScalaInteropTest > parametersInInnerClassConstructor PASSED")
+            }
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Should not produce kotlin-stdlib version conflict on Kotlin files compilation in 'buildSrc' module")
+    internal fun testKotlinDslStdlibVersionConflict(gradleVersion: GradleVersion) {
+        project(
+            projectName = "buildSrcUsingKotlinCompilationAndKotlinPlugin",
+            gradleVersion,
+        ) {
+            listOf(
+                "compileClasspath",
+                "compileOnly",
+                "runtimeClasspath"
+            ).forEach { configuration ->
+                build("-p", "buildSrc", "dependencies", "--configuration", configuration) {
+                    listOf(
+                        "org.jetbrains.kotlin:kotlin-stdlib:${buildOptions.kotlinVersion}",
+                        "org.jetbrains.kotlin:kotlin-stdlib-jdk7:${buildOptions.kotlinVersion}",
+                        "org.jetbrains.kotlin:kotlin-stdlib-jdk8:${buildOptions.kotlinVersion}",
+                        "org.jetbrains.kotlin:kotlin-stdlib-common:${buildOptions.kotlinVersion}",
+                        "org.jetbrains.kotlin:kotlin-reflect:${buildOptions.kotlinVersion}",
+                        "org.jetbrains.kotlin:kotlin-script-runtime:${buildOptions.kotlinVersion}"
+                    ).forEach { assertOutputDoesNotContain(it) }
+                }
+            }
+
+            build("assemble")
+        }
+    }
+
+    @GradleTest
+    @DisplayName("Should be compatible with project isolation")
+    @GradleTestVersions(minVersion = TestVersions.Gradle.G_7_1, maxVersion = TestVersions.Gradle.G_7_1)
+    fun testProjectIsolation(gradleVersion: GradleVersion) {
+        project(
+            projectName = "instantExecution",
+            gradleVersion = gradleVersion,
+            buildOptions = defaultBuildOptions.copy(configurationCache = true, projectIsolation = true),
+        ) {
+            build(":main-project:compileKotlin")
+        }
+    }
+
+    @DisplayName("Proper Gradle plugin variant is used")
+    @GradleTestVersions(
+        additionalVersions = [TestVersions.Gradle.G_7_0, TestVersions.Gradle.G_7_1, TestVersions.Gradle.G_7_4],
+        maxVersion = TestVersions.Gradle.G_7_5
+    )
+    @GradleTest
+    internal fun pluginVariantIsUsed(gradleVersion: GradleVersion) {
+        project("kotlinProject", gradleVersion) {
+            build("tasks") {
+                val expectedVariant = when (gradleVersion) {
+                    GradleVersion.version(TestVersions.Gradle.G_7_5) -> "gradle75"
+                    in GradleVersion.version(TestVersions.Gradle.G_7_1)..GradleVersion.version(TestVersions.Gradle.G_7_4) -> "gradle71"
+                    GradleVersion.version(TestVersions.Gradle.G_7_0) -> "gradle70"
+                    else -> "main"
+                }
+
+                assertOutputContains("Using Kotlin Gradle Plugin $expectedVariant variant")
+            }
+        }
+    }
+
+    @DisplayName("Validate Gradle plugins inputs")
+    @GradleTestVersions(minVersion = TestVersions.Gradle.MAX_SUPPORTED) // Always should use only latest Gradle version
+    @GradleTest
+    internal fun validatePluginInputs(gradleVersion: GradleVersion) {
+        project("kotlinProject", gradleVersion) {
+            buildGradle.modify {
+                """
+                plugins {
+                    id "validate-external-gradle-plugin"
+                ${it.substringAfter("plugins {")}
+                """.trimIndent()
+            }
+
+            build("validateExternalPlugins")
+        }
+    }
+
+    @DisplayName("Accessing Kotlin SourceSet in KotlinDSL")
+    @GradleTestVersions(maxVersion = TestVersions.Gradle.G_7_1)
+    @GradleTest
+    internal fun kotlinDslSourceSets(gradleVersion: GradleVersion) {
+        project("sourceSetsKotlinDsl", gradleVersion) {
+            build("assemble")
         }
     }
 }

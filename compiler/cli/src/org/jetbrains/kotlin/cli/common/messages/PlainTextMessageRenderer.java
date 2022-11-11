@@ -16,13 +16,14 @@
 
 package org.jetbrains.kotlin.cli.common.messages;
 
-import com.intellij.openapi.util.SystemInfo;
-import com.intellij.util.LineSeparator;
 import kotlin.text.StringsKt;
 import org.fusesource.jansi.Ansi;
 import org.fusesource.jansi.internal.CLibrary;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.jetbrains.kotlin.cli.common.CompilerSystemProperties;
+import org.jetbrains.kotlin.cli.common.PropertiesKt;
+import org.jetbrains.kotlin.util.capitalizeDecapitalize.CapitalizeDecapitalizeKt;
 
 import java.util.EnumSet;
 import java.util.Set;
@@ -35,7 +36,7 @@ public abstract class PlainTextMessageRenderer implements MessageRenderer {
     static {
         boolean colorEnabled = false;
         // TODO: investigate why ANSI escape codes on Windows only work in REPL for some reason
-        if (!SystemInfo.isWindows && !"false".equals(System.getProperty("kotlin.colors.enabled"))) {
+        if (!PropertiesKt.isWindows() && "true".equals(CompilerSystemProperties.KOTLIN_COLORS_ENABLED_PROPERTY.getValue())) {
             try {
                 // AnsiConsole doesn't check isatty() for stderr (see https://github.com/fusesource/jansi/pull/35).
                 colorEnabled = CLibrary.isatty(CLibrary.STDERR_FILENO) != 0;
@@ -47,7 +48,7 @@ public abstract class PlainTextMessageRenderer implements MessageRenderer {
         COLOR_ENABLED = colorEnabled;
     }
 
-    private static final String LINE_SEPARATOR = LineSeparator.getSystemLineSeparator().getSeparatorString();
+    private static final String LINE_SEPARATOR = System.lineSeparator();
 
     private static final Set<CompilerMessageSeverity> IMPORTANT_MESSAGE_SEVERITIES = EnumSet.of(EXCEPTION, ERROR, STRONG_WARNING, WARNING);
 
@@ -57,7 +58,7 @@ public abstract class PlainTextMessageRenderer implements MessageRenderer {
     }
 
     @Override
-    public String render(@NotNull CompilerMessageSeverity severity, @NotNull String message, @Nullable CompilerMessageLocation location) {
+    public String render(@NotNull CompilerMessageSeverity severity, @NotNull String message, @Nullable CompilerMessageSourceLocation location) {
         StringBuilder result = new StringBuilder();
 
         int line = location != null ? location.getLine() : -1;
@@ -129,7 +130,7 @@ public abstract class PlainTextMessageRenderer implements MessageRenderer {
             return message;
         }
 
-        return StringsKt.decapitalize(message);
+        return CapitalizeDecapitalizeKt.decapitalizeAsciiOnly(message);
     }
 
     @NotNull
@@ -155,7 +156,7 @@ public abstract class PlainTextMessageRenderer implements MessageRenderer {
     }
 
     @Nullable
-    protected abstract String getPath(@NotNull CompilerMessageLocation location);
+    protected abstract String getPath(@NotNull CompilerMessageSourceLocation location);
 
     @Override
     public String renderUsage(@NotNull String usage) {

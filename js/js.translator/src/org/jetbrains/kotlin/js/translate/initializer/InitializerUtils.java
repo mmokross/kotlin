@@ -16,15 +16,13 @@
 
 package org.jetbrains.kotlin.js.translate.initializer;
 
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.kotlin.descriptors.PropertyDescriptor;
 import org.jetbrains.kotlin.js.backend.ast.JsExpression;
 import org.jetbrains.kotlin.js.backend.ast.JsStatement;
-import org.jetbrains.annotations.NotNull;
-import org.jetbrains.annotations.Nullable;
-import org.jetbrains.kotlin.descriptors.PropertyDescriptor;
-import org.jetbrains.kotlin.js.translate.context.Namer;
 import org.jetbrains.kotlin.js.translate.context.TranslationContext;
 import org.jetbrains.kotlin.js.translate.utils.JsAstUtils;
-import org.jetbrains.kotlin.resolve.source.KotlinSourceElementKt;
+import org.jetbrains.kotlin.resolve.source.PsiSourceElementKt;
 
 import static org.jetbrains.kotlin.js.translate.utils.TranslationUtils.assignmentToBackingField;
 
@@ -39,16 +37,16 @@ public final class InitializerUtils {
             @NotNull JsExpression value
     ) {
         JsExpression assignment = assignmentToBackingField(context, descriptor, value);
-        assignment.setSource(KotlinSourceElementKt.getPsi(descriptor.getSource()));
+        assignment.setSource(PsiSourceElementKt.getPsi(descriptor.getSource()));
         return assignment.makeStmt();
     }
 
-    @Nullable
+    @NotNull
     public static JsStatement generateInitializerForDelegate(
+            @NotNull TranslationContext context,
             @NotNull PropertyDescriptor descriptor,
             @NotNull JsExpression value
     ) {
-        String name = descriptor.getName().asString();
-        return JsAstUtils.defineSimpleProperty(Namer.getDelegateName(name), value, descriptor.getSource());
+        return JsAstUtils.defineSimpleProperty(context.getNameForBackingField(descriptor), value, descriptor.getSource());
     }
 }

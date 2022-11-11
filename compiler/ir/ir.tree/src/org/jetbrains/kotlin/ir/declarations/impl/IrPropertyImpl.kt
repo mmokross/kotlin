@@ -1,75 +1,117 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2022 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.ir.declarations.impl
 
+import org.jetbrains.kotlin.descriptors.Modality
 import org.jetbrains.kotlin.descriptors.PropertyDescriptor
+import org.jetbrains.kotlin.descriptors.DescriptorVisibility
+import org.jetbrains.kotlin.ir.ObsoleteDescriptorBasedAPI
 import org.jetbrains.kotlin.ir.declarations.*
-import org.jetbrains.kotlin.ir.util.transform
-import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import org.jetbrains.kotlin.utils.SmartList
+import org.jetbrains.kotlin.ir.descriptors.toIrBasedDescriptor
+import org.jetbrains.kotlin.ir.expressions.IrConstructorCall
+import org.jetbrains.kotlin.ir.symbols.IrPropertySymbol
+import org.jetbrains.kotlin.name.Name
+import org.jetbrains.kotlin.serialization.deserialization.descriptors.DeserializedContainerSource
+
+abstract class IrPropertyCommonImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    override var origin: IrDeclarationOrigin,
+    override var name: Name,
+    override var visibility: DescriptorVisibility,
+    override val isVar: Boolean,
+    override val isConst: Boolean,
+    override val isLateinit: Boolean,
+    override val isDelegated: Boolean,
+    override val isExternal: Boolean,
+    override val isExpect: Boolean,
+    override val containerSource: DeserializedContainerSource?,
+) : IrProperty() {
+
+    override lateinit var parent: IrDeclarationParent
+    override var annotations: List<IrConstructorCall> = emptyList()
+
+    override var backingField: IrField? = null
+
+    override var getter: IrSimpleFunction? = null
+
+    override var setter: IrSimpleFunction? = null
+
+    override var overriddenSymbols: List<IrPropertySymbol> = emptyList()
+
+    override var metadata: MetadataSource? = null
+
+    override var attributeOwnerId: IrAttributeContainer = this
+}
 
 class IrPropertyImpl(
-        startOffset: Int,
-        endOffset: Int,
-        origin: IrDeclarationOrigin,
-        override val isDelegated: Boolean,
-        override val descriptor: PropertyDescriptor
-) : IrDeclarationBase(startOffset, endOffset, origin), IrProperty {
-    constructor(
-            startOffset: Int, endOffset: Int, origin: IrDeclarationOrigin,
-            descriptor: PropertyDescriptor
-    ) : this(startOffset, endOffset, origin, descriptor.isDelegated, descriptor)
-
-    constructor(
-            startOffset: Int, endOffset: Int, origin: IrDeclarationOrigin, isDelegated: Boolean, descriptor: PropertyDescriptor,
-            backingField: IrField?
-    ) : this(startOffset, endOffset, origin, isDelegated, descriptor) {
-        this.backingField = backingField
+    startOffset: Int,
+    endOffset: Int,
+    origin: IrDeclarationOrigin,
+    override val symbol: IrPropertySymbol,
+    name: Name,
+    visibility: DescriptorVisibility,
+    override val modality: Modality,
+    isVar: Boolean,
+    isConst: Boolean,
+    isLateinit: Boolean,
+    isDelegated: Boolean,
+    isExternal: Boolean,
+    isExpect: Boolean = false,
+    override val isFakeOverride: Boolean = origin == IrDeclarationOrigin.FAKE_OVERRIDE,
+    containerSource: DeserializedContainerSource? = null,
+    override val factory: IrFactory = IrFactoryImpl,
+) : IrPropertyCommonImpl(
+    startOffset, endOffset, origin, name, visibility, isVar, isConst, isLateinit, isDelegated, isExternal, isExpect,
+    containerSource
+) {
+    init {
+        symbol.bind(this)
     }
 
-    constructor(
-            startOffset: Int, endOffset: Int, origin: IrDeclarationOrigin, isDelegated: Boolean, descriptor: PropertyDescriptor,
-            backingField: IrField?, getter: IrFunction?, setter: IrFunction?
-    ) : this(startOffset, endOffset, origin, isDelegated, descriptor, backingField) {
-        this.getter = getter
-        this.setter = setter
+    @ObsoleteDescriptorBasedAPI
+    override val descriptor: PropertyDescriptor
+        get() = symbol.descriptor
+}
+
+class IrPropertyWithLateBindingImpl(
+    startOffset: Int,
+    endOffset: Int,
+    origin: IrDeclarationOrigin,
+    name: Name,
+    visibility: DescriptorVisibility,
+    override var modality: Modality,
+    isVar: Boolean,
+    isConst: Boolean,
+    isLateinit: Boolean,
+    isDelegated: Boolean,
+    isExternal: Boolean,
+    isExpect: Boolean,
+    override val isFakeOverride: Boolean = origin == IrDeclarationOrigin.FAKE_OVERRIDE,
+    override val factory: IrFactory = IrFactoryImpl,
+) : IrPropertyCommonImpl(
+    startOffset, endOffset, origin, name, visibility, isVar, isConst, isLateinit, isDelegated, isExternal, isExpect,
+    containerSource = null,
+), IrPropertyWithLateBinding {
+    private var _symbol: IrPropertySymbol? = null
+
+    override val symbol: IrPropertySymbol
+        get() = _symbol ?: error("$this has not acquired a symbol yet")
+
+    @ObsoleteDescriptorBasedAPI
+    override val descriptor
+        get() = _symbol?.descriptor ?: this.toIrBasedDescriptor()
+
+    override fun acquireSymbol(symbol: IrPropertySymbol): IrProperty {
+        assert(_symbol == null) { "$this already has symbol _symbol" }
+        _symbol = symbol
+        symbol.bind(this)
+        return this
     }
 
-    override val typeParameters: MutableList<IrTypeParameter> = SmartList()
-    override var backingField: IrField? = null
-    override var getter: IrFunction? = null
-    override var setter: IrFunction? = null
-
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
-        return visitor.visitProperty(this, data)
-    }
-
-    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        typeParameters.forEach { it.accept(visitor, data) }
-        backingField?.accept(visitor, data)
-        getter?.accept(visitor, data)
-        setter?.accept(visitor, data)
-    }
-
-    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        typeParameters.transform { it.transform(transformer, data) }
-        backingField = backingField?.transform(transformer, data) as? IrField
-        getter = getter?.transform(transformer, data) as? IrFunction
-        setter = setter?.transform(transformer, data) as? IrFunction
-    }
+    override val isBound: Boolean
+        get() = _symbol != null
 }

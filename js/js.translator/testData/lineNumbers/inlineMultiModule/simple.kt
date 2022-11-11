@@ -8,7 +8,8 @@ inline fun foo(x: String) {
     println("foo2($x);")
 }
 
-// LINES: 7 8
+// LINES(JS):    6 6 6 6 6 9 7 7 8 8
+// LINES(JS_IR):       6 6   7 7 8 8
 
 // MODULE: main(lib)
 // FILE: main.kt
@@ -21,4 +22,5 @@ fun box() {
     foo("42")
 }
 
-// LINES: 7 20 7 8 20 8 7 21 7 8 21 8
+// LINES(JS):    6    20    23 7 7 21 7 8 8 21      8 7 7 22 7 8 8 22 8
+// LINES(JS_IR):   20 20 21 *  7 7      8 8    22 *   7 7      8 8

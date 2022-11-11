@@ -1,3 +1,4 @@
+// NI_EXPECTED_FILE
 val flag = true
 
 // type of a was checked by txt
@@ -8,7 +9,7 @@ val a = run { // () -> Unit
 // Unit
 val b = run {
     if (flag) return@run
-    <!UNUSED_EXPRESSION!>5<!>
+    5
 }
 
 // Unit

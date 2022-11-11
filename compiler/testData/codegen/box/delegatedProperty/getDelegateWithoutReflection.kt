@@ -1,8 +1,11 @@
+// IGNORE_BACKEND: WASM
+// IGNORE_BACKEND: JS_IR
+// IGNORE_BACKEND: JS_IR_ES6
 // IGNORE_BACKEND: JS
 // IGNORE_BACKEND: NATIVE
 
 // No kotlin-reflect.jar in this test
-// WITH_RUNTIME
+// WITH_STDLIB
 
 import kotlin.reflect.KProperty
 

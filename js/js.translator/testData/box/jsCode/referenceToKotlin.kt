@@ -1,4 +1,5 @@
-// EXPECTED_REACHABLE_NODES: 901
+// KJS_WITH_FULL_RUNTIME
+// EXPECTED_REACHABLE_NODES: 1687
 external fun p(m: String): String
 
 var log = ""
@@ -23,9 +24,15 @@ fun test4(): String {
     return js("p('test4')")
 }
 
+fun f() = js("p('test5')")
+
 fun test5(): String {
     val p = "wrong5"
-    fun f() = js("p('test5')")
+    // The behavoiur of the classical backend is weird and buggy
+    // From the user side, the local variable `p` is captured
+    // but we have different behaviour because the renaming phase in classical backend
+    // will be invoked after the lambda will be moved up
+    // fun f() = js("p('test5')")
     return f()
 }
 

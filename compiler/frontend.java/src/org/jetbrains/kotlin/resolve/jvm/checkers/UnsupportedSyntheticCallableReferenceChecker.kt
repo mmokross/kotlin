@@ -17,18 +17,30 @@
 package org.jetbrains.kotlin.resolve.jvm.checkers
 
 import com.intellij.psi.PsiElement
-import org.jetbrains.kotlin.diagnostics.Errors.UNSUPPORTED
-import org.jetbrains.kotlin.resolve.calls.callUtil.isCallableReference
+import org.jetbrains.kotlin.config.LanguageFeature
+import org.jetbrains.kotlin.diagnostics.Errors.UNSUPPORTED_FEATURE
+import org.jetbrains.kotlin.psi.KtPropertyDelegate
+import org.jetbrains.kotlin.psi.psiUtil.unwrapParenthesesLabelsAndAnnotationsDeeply
 import org.jetbrains.kotlin.resolve.calls.checkers.CallChecker
 import org.jetbrains.kotlin.resolve.calls.checkers.CallCheckerContext
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall
+import org.jetbrains.kotlin.resolve.calls.util.extractCallableReferenceExpression
 import org.jetbrains.kotlin.synthetic.SyntheticJavaPropertyDescriptor
 
 class UnsupportedSyntheticCallableReferenceChecker : CallChecker {
     override fun check(resolvedCall: ResolvedCall<*>, reportOn: PsiElement, context: CallCheckerContext) {
         // TODO: support references to synthetic Java extension properties (KT-8575)
-        if (resolvedCall.call.isCallableReference() && resolvedCall.resultingDescriptor is SyntheticJavaPropertyDescriptor) {
-            context.trace.report(UNSUPPORTED.on(reportOn, "reference to the synthetic extension property for a Java get/set method"))
+        val callableReferenceExpression = resolvedCall.call.extractCallableReferenceExpression() ?: return
+
+        // We allow resolve of top-level callable reference to synthetic Java extension properties in delegate position
+        if (callableReferenceExpression.unwrapParenthesesLabelsAndAnnotationsDeeply() is KtPropertyDelegate) return
+
+        if (resolvedCall.resultingDescriptor is SyntheticJavaPropertyDescriptor) {
+            if (!context.languageVersionSettings.supportsFeature(LanguageFeature.ReferencesToSyntheticJavaProperties)) {
+                context.trace.report(UNSUPPORTED_FEATURE.on(reportOn, LanguageFeature.ReferencesToSyntheticJavaProperties to context.languageVersionSettings))
+            } else if (!context.languageVersionSettings.supportsFeature(LanguageFeature.NewInference)) {
+                context.trace.report(UNSUPPORTED_FEATURE.on(reportOn, LanguageFeature.NewInference to context.languageVersionSettings))
+            }
         }
     }
 }

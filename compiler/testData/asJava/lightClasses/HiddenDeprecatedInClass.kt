@@ -8,4 +8,4 @@ class A {
     }
 }
 
-// LAZINESS:NoLaziness
+// FIR_COMPARISON

@@ -52,10 +52,10 @@ abstract class B1(
 
 class B2() : B1(1, "r") {}
 
-abstract class B3(<!UNUSED_PARAMETER!>i<!>: Int) {
+abstract class B3(i: Int) {
 }
 
-fun foo(<!UNUSED_PARAMETER!>c<!>: B3) {
-    val <!UNUSED_VARIABLE!>a<!> = <!CREATING_AN_INSTANCE_OF_ABSTRACT_CLASS!>B3(1)<!>
-    val <!UNUSED_VARIABLE!>b<!> = <!CREATING_AN_INSTANCE_OF_ABSTRACT_CLASS!>B1(2, "s")<!>
+fun foo(c: B3) {
+    val a = <!CREATING_AN_INSTANCE_OF_ABSTRACT_CLASS!>B3(1)<!>
+    val b = <!CREATING_AN_INSTANCE_OF_ABSTRACT_CLASS!>B1(2, "s")<!>
 }

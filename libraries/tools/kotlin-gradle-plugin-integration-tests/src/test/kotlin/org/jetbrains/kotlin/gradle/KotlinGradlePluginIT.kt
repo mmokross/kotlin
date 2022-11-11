@@ -17,528 +17,787 @@
 package org.jetbrains.kotlin.gradle
 
 import org.gradle.api.logging.LogLevel
-import org.jetbrains.kotlin.com.intellij.openapi.util.io.FileUtil
-import org.jetbrains.kotlin.gradle.tasks.USING_INCREMENTAL_COMPILATION_MESSAGE
-import org.jetbrains.kotlin.gradle.util.getFileByName
-import org.jetbrains.kotlin.gradle.util.getFilesByNames
-import org.jetbrains.kotlin.gradle.util.modify
-import org.junit.Test
-import java.io.File
-import kotlin.test.assertNotEquals
-import kotlin.test.assertTrue
+import org.gradle.api.logging.configuration.WarningMode
+import org.gradle.util.GradleVersion
+import org.jetbrains.kotlin.gradle.tasks.USING_JVM_INCREMENTAL_COMPILATION_MESSAGE
+import org.jetbrains.kotlin.gradle.testbase.*
+import org.jetbrains.kotlin.gradle.util.checkBytecodeContains
+import org.jetbrains.kotlin.gradle.util.checkedReplace
+import org.jetbrains.kotlin.gradle.util.testResolveAllConfigurations
+import org.junit.jupiter.api.Disabled
+import org.junit.jupiter.api.DisplayName
+import org.junit.jupiter.api.condition.DisabledOnOs
+import org.junit.jupiter.api.condition.OS
+import org.junit.jupiter.api.io.TempDir
+import java.nio.file.Path
+import java.util.zip.ZipFile
+import kotlin.io.path.*
+import kotlin.test.*
 
-class KotlinGradleIT: BaseGradleIT() {
+@DisplayName("Basic Kotlin/JVM plugin tests")
+@JvmGradlePluginTests
+class KotlinGradleIT : KGPBaseTest() {
 
-    companion object {
-        private const val GRADLE_VERSION = "2.10"
-    }
-
-    @Test
-    fun testCrossCompile() {
-        val project = Project("kotlinJavaProject", GRADLE_VERSION)
-
-        project.build("compileDeployKotlin", "build") {
-            assertSuccessful()
-            assertReportExists()
-            assertContains(":compileKotlin", ":compileTestKotlin", ":compileDeployKotlin")
-        }
-
-        project.build("compileDeployKotlin", "build") {
-            assertSuccessful()
-            assertContains(":compileKotlin UP-TO-DATE", ":compileTestKotlin UP-TO-DATE", ":compileDeployKotlin UP-TO-DATE", ":compileJava UP-TO-DATE")
-        }
-    }
-
-    @Test
-    fun testRunningInDifferentDir() {
-        val wd0 = workingDir
-        val wd1 = File(wd0, "subdir").apply { mkdirs() }
-        workingDir = wd1
-        val project1 = Project("kotlinJavaProject", "3.3")
-
-        project1.build("assemble") {
-            assertSuccessful()
-        }
-
-        val wd2 = FileUtil.createTempDirectory("testRunningInDifferentDir", null)
-        wd1.copyRecursively(wd2)
-        wd1.deleteRecursively()
-        assert(!wd1.exists())
-        wd0.setWritable(false)
-        workingDir = wd2
-
-        project1.build("test") {
-            assertSuccessful()
-        }
-    }
-
-    @Test
-    fun testKotlinOnlyCompile() {
-        val project = Project("kotlinProject", GRADLE_VERSION)
-
-        project.build("build") {
-            assertSuccessful()
-            assertFileExists("build/classes/main/META-INF/kotlinProject_main.kotlin_module")
-            assertReportExists()
-            assertContains(":compileKotlin", ":compileTestKotlin")
-            assertNotContains("Forcing System.gc")
-        }
-
-        project.build("build") {
-            assertSuccessful()
-            assertContains(":compileKotlin UP-TO-DATE", ":compileTestKotlin UP-TO-DATE")
-        }
-    }
-
-    // For corresponding documentation, see https://docs.gradle.org/current/userguide/gradle_daemon.html
-    // Setting user.variant to different value implies a new daemon process will be created.
-    // In order to stop daemon process, special exit task is used ( System.exit(0) ).
-    @Test
-    fun testKotlinOnlyDaemonMemory() {
-        val project = Project("kotlinProject", GRADLE_VERSION)
-        val VARIANT_CONSTANT = "ForTest"
-        val userVariantArg = "-Duser.variant=$VARIANT_CONSTANT"
-        val MEMORY_MAX_GROWTH_LIMIT_KB = 500
-        val BUILD_COUNT = 15
-        val reportMemoryUsage = "-Dkotlin.gradle.test.report.memory.usage=true"
-        val options =  BaseGradleIT.BuildOptions(withDaemon = true)
-
-        fun exitTestDaemon() {
-            project.build(userVariantArg, reportMemoryUsage, "exit", options = options) {
-                assertFailed()
-                assertContains("The daemon has exited normally or was terminated in response to a user interrupt.")
-            }
-        }
-
-        fun buildAndGetMemoryAfterBuild(): Int {
-            var reportedMemory: Int? = null
-
-            project.build(userVariantArg, reportMemoryUsage, "clean", "build", options = options) {
-                assertSuccessful()
-                val matches = "\\[KOTLIN\\]\\[PERF\\] Used memory after build: (\\d+) kb \\(difference since build start: ([+-]?\\d+) kb\\)"
-                        .toRegex().find(output)
-                assert(matches != null && matches.groups.size == 3) { "Used memory after build is not reported by plugin" }
-                reportedMemory = matches!!.groupValues[1].toInt()
+    @DisplayName("Kotlin/Java cross compilation")
+    @GradleTest
+    fun testCrossCompile(gradleVersion: GradleVersion) {
+        project("kotlinJavaProject", gradleVersion) {
+            build("compileDeployKotlin", "build") {
+                assertTasksExecuted(
+                    ":compileKotlin",
+                    ":compileTestKotlin",
+                    ":compileDeployKotlin"
+                )
             }
 
-            return reportedMemory!!
-        }
-
-        exitTestDaemon()
-
-        try {
-            val usedMemory = (1..BUILD_COUNT).map { buildAndGetMemoryAfterBuild() }
-
-            // ensure that the maximum of the used memory established after several first builds doesn't raise significantly in the subsequent builds
-            val establishedMaximum = usedMemory.take(5).max()!!
-            val totalMaximum = usedMemory.max()!!
-
-            val maxGrowth = totalMaximum - establishedMaximum
-            assertTrue(maxGrowth <= MEMORY_MAX_GROWTH_LIMIT_KB,
-                    "Maximum used memory over series of builds growth $maxGrowth (from $establishedMaximum to $totalMaximum) kb > $MEMORY_MAX_GROWTH_LIMIT_KB kb")
-
-            // testing that nothing remains locked by daemon, see KT-9440
-            project.build(userVariantArg, "clean", options = BaseGradleIT.BuildOptions(withDaemon = true)) {
-                assertSuccessful()
+            build("compileDeployKotlin", "build") {
+                assertTasksUpToDate(
+                    ":compileKotlin",
+                    ":compileTestKotlin",
+                    ":compileDeployKotlin",
+                    ":compileJava"
+                )
             }
         }
-        finally {
-            exitTestDaemon()
+    }
+
+    @DisplayName("Kotlin only project compilation")
+    @GradleTest
+    fun testKotlinOnlyCompile(gradleVersion: GradleVersion) {
+        project("kotlinProject", gradleVersion) {
+            build("build") {
+                assertFileExists(kotlinClassesDir().resolve("META-INF/kotlinProject.kotlin_module"))
+                assertTasksExecuted(":compileKotlin", ":compileTestKotlin")
+                assertOutputDoesNotContain("Forcing System.gc")
+            }
+
+            build("build") {
+                assertTasksUpToDate(
+                    ":compileKotlin",
+                    ":compileTestKotlin"
+                )
+            }
         }
     }
 
-    @Test
-    fun testLogLevelForceGC() {
-        val debugProject = Project("simpleProject", GRADLE_VERSION, minLogLevel = LogLevel.DEBUG)
-        debugProject.build("build") {
-            assertContains("Forcing System.gc()")
-        }
-
-        val infoProject = Project("simpleProject", GRADLE_VERSION, minLogLevel = LogLevel.INFO)
-        infoProject.build("clean", "build") {
-            assertNotContains("Forcing System.gc()")
+    @DisplayName("Project path contains spaces")
+    @GradleTest
+    fun testKotlinCompileInFolderWithSpaces(gradleVersion: GradleVersion) {
+        project(projectName = "Project Path With Spaces", gradleVersion) {
+            build("build") {
+                assertTasksExecuted(":compileKotlin", ":compileTestKotlin")
+                assertOutputDoesNotContain("Forcing System.gc")
+            }
         }
     }
 
-    @Test
-    fun testKotlinClasspath() {
-        Project("classpathTest", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-            assertReportExists()
-            assertContains(":compileKotlin", ":compileTestKotlin")
+    @DisplayName("Logs contain memory usage entries on LIFECYCLE log level")
+    @GradleTest
+    fun testLogLevelForceGC(gradleVersion: GradleVersion) {
+        project("simpleProject", gradleVersion) {
+            build(
+                "assemble",
+                "-Dkotlin.gradle.test.report.memory.usage=true",
+                buildOptions = defaultBuildOptions.copy(logLevel = LogLevel.LIFECYCLE)
+            ) {
+                assertOutputContains("Forcing System.gc()")
+            }
+            build(
+                "clean",
+                "assemble",
+                "-Dkotlin.gradle.test.report.memory.usage=true",
+                buildOptions = defaultBuildOptions.copy(logLevel = LogLevel.QUIET)
+            ) {
+                assertOutputDoesNotContain("Forcing System.gc()")
+            }
         }
     }
 
-    @Test
-    fun testInternalTest() {
-        Project("internalTest", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-            assertReportExists()
-            assertContains(":compileKotlin", ":compileTestKotlin")
+    @DisplayName("Plugin is avialble when applied via buildscript classpath")
+    @GradleTest
+    fun testMultiprojectPluginClasspath(gradleVersion: GradleVersion) {
+        project("multiprojectClassPathTest", gradleVersion) {
+            build("build") {
+                assertTasksExecuted(
+                    ":subproject:compileKotlin",
+                    ":subproject:compileTestKotlin"
+                )
+            }
         }
     }
 
-    @Test
-    fun testMultiprojectPluginClasspath() {
-        Project("multiprojectClassPathTest", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-            assertReportExists("subproject")
-            assertContains(":subproject:compileKotlin", ":subproject:compileTestKotlin")
-            checkKotlinGradleBuildServices()
+    @DisplayName("Incremental logs are available on INFO log level")
+    @GradleTest
+    fun testIncrementalCompilationLogLevel(gradleVersion: GradleVersion) {
+        project("kotlinProject", gradleVersion) {
+            build(
+                "assemble",
+                buildOptions = defaultBuildOptions.copy(logLevel = LogLevel.INFO)
+            ) {
+                assertOutputContains(USING_JVM_INCREMENTAL_COMPILATION_MESSAGE)
+            }
+
+            build(
+                "assemble",
+                buildOptions = defaultBuildOptions.copy(logLevel = LogLevel.LIFECYCLE)
+            ) {
+                assertOutputDoesNotContain(USING_JVM_INCREMENTAL_COMPILATION_MESSAGE)
+            }
         }
     }
 
-    @Test
-    fun testIncremental() {
-        val project = Project("kotlinProject", GRADLE_VERSION)
-        val options = defaultBuildOptions().copy(incremental = true)
+    @DisplayName("Conversion between Kotlin and Java")
+    @GradleTest
+    fun testConvertJavaToKotlin(gradleVersion: GradleVersion) {
+        project("convertBetweenJavaAndKotlin", gradleVersion) {
+            val barKt = javaSourcesDir().resolve("foo/Bar.kt")
+            val barKtContent = barKt.readText()
+            barKt.deleteIfExists()
 
-        project.build("build", options = options) {
-            assertSuccessful()
-            assertNoWarnings()
-        }
+            build("build")
 
-        val greeterKt = project.projectDir.getFileByName("Greeter.kt")
-        greeterKt.modify {
-            it.replace("greeting: String", "greeting: CharSequence")
-        }
+            val barClass = kotlinClassesDir().resolve("foo/Bar.class").toFile()
+            val barClassTimestamp = barClass.lastModified()
 
-        project.build("build", options = options) {
-            assertSuccessful()
-            assertNoWarnings()
-            val affectedSources = project.projectDir.getFilesByNames("Greeter.kt", "KotlinGreetingJoiner.kt",
-                    "TestGreeter.kt", "TestKotlinGreetingJoiner.kt")
-            assertCompiledKotlinSources(project.relativize(affectedSources), weakTesting = false)
-        }
-    }
+            val barJava = javaSourcesDir().resolve("foo/Bar.java")
+            barJava.deleteIfExists()
+            barKt.writeText(barKtContent)
 
-    @Test
-    fun testSimpleMultiprojectIncremental() {
-        fun Project.modify(body: Project.() -> Unit): Project {
-            this.body()
-            return this
-        }
-
-        val incremental = defaultBuildOptions().copy(incremental = true)
-
-        Project("multiprojectWithDependency", GRADLE_VERSION).build("assemble", options = incremental) {
-            assertSuccessful()
-            assertReportExists("projA")
-            assertContains(":projA:compileKotlin")
-            assertNotContains("projA:compileKotlin UP-TO-DATE")
-            assertReportExists("projB")
-            assertContains(":projB:compileKotlin")
-            assertNotContains("projB:compileKotlin UP-TO-DATE")
-        }
-        Project("multiprojectWithDependency", GRADLE_VERSION).modify {
-            val oldSrc = File(this.projectDir, "projA/src/main/kotlin/a.kt")
-            val newSrc = File(this.projectDir, "projA/src/main/kotlin/a.kt.new")
-            assertTrue { oldSrc.exists() }
-            assertTrue { newSrc.exists() }
-            newSrc.copyTo(oldSrc, overwrite = true)
-        }.build("assemble", options = incremental) {
-            assertSuccessful()
-            assertReportExists("projA")
-            assertContains(":projA:compileKotlin")
-            assertNotContains("projA:compileKotlin UP-TO-DATE")
-            assertReportExists("projB")
-            assertContains(":projB:compileKotlin")
-            assertNotContains("projB:compileKotlin UP-TO-DATE")
+            build("build") {
+                assertTasksExecuted(":compileKotlin", ":compileJava")
+                assertNotEquals(
+                    barClassTimestamp,
+                    barClass.lastModified(),
+                    "Bar.class timestamp hasn't been updated"
+                )
+            }
         }
     }
 
-    @Test
-    fun testKotlinInJavaRoot() {
-        Project("kotlinInJavaRoot", GRADLE_VERSION).build("build") {
-            assertSuccessful()
-            assertReportExists()
-            assertContains(":compileKotlin", ":compileTestKotlin")
+    @DisplayName("Moving class to another Gradle subproject")
+    @GradleTest
+    fun testMoveClassToOtherModule(gradleVersion: GradleVersion) {
+        project("moveClassToOtherModule", gradleVersion) {
+            build("assemble")
+
+            with(subProject("lib").javaSourcesDir()) {
+                resolve("bar/A.kt.new").moveTo(resolve("bar/A.kt"))
+            }
+            with(subProject("app").javaSourcesDir()) {
+                resolve("foo/A.kt").deleteIfExists()
+                resolve("foo/useA.kt.new")
+                    .moveTo(resolve("foo/useA.kt"), overwrite = true)
+            }
+
+            build("assemble")
         }
     }
 
-    @Test
-    fun testIncrementalPropertyFromLocalPropertiesFile() {
-        val project = Project("kotlinProject", GRADLE_VERSION)
-        project.setupWorkingDir()
+    @DisplayName("Adding free compiler arguments")
+    @GradleTest
+    fun testFreeCompilerArgs(gradleVersion: GradleVersion) {
+        project("kotlinProject", gradleVersion) {
+            val customModuleName = "custom_module_name"
 
-        val localPropertyFile = File(project.projectDir, "local.properties")
-        localPropertyFile.writeText("kotlin.incremental=true")
-
-        project.build("build") {
-            assertContains(USING_INCREMENTAL_COMPILATION_MESSAGE)
-        }
-    }
-
-    @Test
-    fun testConvertJavaToKotlin() {
-        val project = Project("convertBetweenJavaAndKotlin", GRADLE_VERSION)
-        project.setupWorkingDir()
-
-        val barKt = project.projectDir.getFileByName("Bar.kt")
-        val barKtContent = barKt.readText()
-        barKt.delete()
-
-        project.build("build") {
-            assertSuccessful()
-        }
-
-        val barClass = project.projectDir.getFileByName("Bar.class")
-        val barClassTimestamp = barClass.lastModified()
-
-        val barJava = project.projectDir.getFileByName("Bar.java")
-        barJava.delete()
-        barKt.writeText(barKtContent)
-
-        project.build("build") {
-            assertSuccessful()
-            assertNotContains(":compileKotlin UP-TO-DATE", ":compileJava UP-TO-DATE")
-            assertNotEquals(barClassTimestamp, barClass.lastModified(), "Bar.class timestamp hasn't been updated")
-        }
-    }
-
-    @Test
-    fun testWipeClassesDirectoryBetweenBuilds() {
-        val project = Project("kotlinJavaProject", GRADLE_VERSION)
-
-        project.build("build") {
-            assertSuccessful()
-        }
-
-        val javaOutputDir = File(project.projectDir, "build/classes")
-        assert(javaOutputDir.isDirectory) { "Classes directory does not exist $javaOutputDir" }
-        javaOutputDir.deleteRecursively()
-
-        project.build("build") {
-            assertSuccessful()
-            assertContains(":compileKotlin UP-TO-DATE")
-        }
-    }
-
-    @Test
-    fun testMoveClassToOtherModule() {
-        val project = Project("moveClassToOtherModule", GRADLE_VERSION)
-
-        project.build("build") {
-            assertSuccessful()
-            assertContains("Connected to daemon")
-        }
-
-        project.performModifications()
-        project.build("build") {
-            assertSuccessful()
-            assertContains("Connected to daemon")
-        }
-    }
-
-    @Test
-    fun testTypeAliasIncremental() {
-        val project = Project("typeAlias", GRADLE_VERSION)
-        val options = defaultBuildOptions().copy(incremental = true)
-
-        project.build("build", options = options) {
-            assertSuccessful()
-        }
-
-        val curryKt = project.projectDir.getFileByName("Curry.kt")
-        val useCurryKt = project.projectDir.getFileByName("UseCurry.kt")
-
-        curryKt.modify {
-            it.replace("class Curry", "internal class Curry")
-        }
-
-        project.build("build", options = options) {
-            assertSuccessful()
-            assertCompiledKotlinSources(project.relativize(curryKt, useCurryKt))
-        }
-    }
-
-    @Test
-    fun testKotlinBuiltins() {
-        val project = Project("kotlinBuiltins", "3.2")
-
-        project.build("build") {
-            assertSuccessful()
-        }
-    }
-
-    @Test
-    fun testCustomCompilerFile() {
-        val project = Project("customCompilerFile", GRADLE_VERSION)
-        project.setupWorkingDir()
-
-        // copy compiler embeddable to project dir using custom name
-        val classpath = System.getProperty("java.class.path").split(File.pathSeparator)
-        val kotlinEmbeddableJar = File(classpath.find { it.contains("kotlin-compiler-embeddable") })
-        val compilerJar = File(project.projectDir, "compiler.jar")
-        kotlinEmbeddableJar.copyTo(compilerJar)
-
-        project.build("build") {
-            assertSuccessful()
-            assertContains("Kotlin compiler classpath: $compilerJar")
-        }
-    }
-
-
-    @Test
-    fun testMultiplatformCompile() {
-        val project = Project("multiplatformProject", GRADLE_VERSION)
-
-        project.build("build") {
-            assertSuccessful()
-            assertContains(":lib:compileKotlinCommon",
-                    ":lib:compileTestKotlinCommon",
-                    ":libJvm:compileKotlin",
-                    ":libJvm:compileTestKotlin",
-                    ":libJs:compileKotlin2Js",
-                    ":libJs:compileTestKotlin2Js")
-            assertFileExists("lib/build/classes/main/foo/PlatformClass.kotlin_metadata")
-            assertFileExists("lib/build/classes/test/foo/PlatformTest.kotlin_metadata")
-            assertFileExists("libJvm/build/classes/main/foo/PlatformClass.class")
-            assertFileExists("libJvm/build/classes/test/foo/PlatformTest.class")
-            assertFileExists("libJs/build/classes/main/libJs_main.js")
-            assertFileExists("libJs/build/classes/test/libJs_test.js")
-        }
-    }
-
-    @Test
-    fun testFreeCompilerArgs() {
-        val project = Project("kotlinProject", GRADLE_VERSION)
-        project.setupWorkingDir()
-
-        File(project.projectDir, "build.gradle").modify {
-            // lazy eval is important
-            val customModuleName = "\${project.name}"
-            it + """
-            compileKotlin {
-                kotlinOptions.freeCompilerArgs = [ "-module-name", "$customModuleName" ]
-            }"""
-        }
-
-        project.build("build") {
-            assertSuccessful()
-        }
-    }
-
-    @Test
-    fun testChangeDestinationDir() {
-        val project = Project("kotlinProject", "3.3")
-        project.setupWorkingDir()
-
-        val fileToRemove = File(project.projectDir, "src/main/kotlin/removeMe.kt")
-        fileToRemove.writeText("val x = 1")
-        val classFilePath = "build/classes/main/RemoveMeKt.class"
-
-        project.build("build") {
-            assertSuccessful()
-            assertFileExists(classFilePath)
-        }
-
-        // Check that after the change the build succeeds and no stale classes remain in the java classes dir
-        File(project.projectDir, "build.gradle").modify {
-            "$it\n\ncompileKotlin.destinationDir = file(\"\${project.buildDir}/compileKotlin\")"
-        }
-        fileToRemove.delete()
-
-        project.build("build") {
-            assertSuccessful()
-            assertNoSuchFile(classFilePath)
-            // Check that the fallback to non-incremental copying was chosen
-            assertContains("Non-incremental copying files")
-        }
-
-        // Check that the classes are copied incrementally under normal conditions
-        fileToRemove.writeText("val x = 1")
-        project.build("build") {
-            assertSuccessful()
-            assertFileExists(classFilePath)
-            assertNotContains("Non-incremental copying files")
-        }
-    }
-
-    @Test
-    fun testDowngradeTo106() {
-        val project = Project("kotlinProject", GRADLE_VERSION)
-        val options = defaultBuildOptions().copy(incremental = true, withDaemon = false)
-
-        project.build("assemble", options = options) {
-            assertSuccessful()
-        }
-
-        project.build("clean", "assemble", options = options.copy(kotlinVersion = "1.0.6")) {
-            assertSuccessful()
-        }
-    }
-
-    @Test
-    fun testOmittedStdlibVersion() {
-        val project = Project("kotlinProject", "2.3")
-        project.setupWorkingDir()
-        File(project.projectDir, "build.gradle").modify {
-            it.replace("kotlin-stdlib:\$kotlin_version", "kotlin-stdlib").apply { check(!equals(it)) }
-        }
-
-        project.build("build") {
-            assertSuccessful()
-            assertContains(":compileKotlin", ":compileTestKotlin")
-        }
-    }
-
-    @Test
-    fun testCleanAfterIncrementalBuild() {
-        val project = Project("kotlinProject", "3.3")
-        val options = defaultBuildOptions().copy(incremental = true)
-
-        project.build("build", "clean", options = options) {
-            assertSuccessful()
-        }
-    }
-
-    @Test
-    fun testLanguageVersionApiVersionExplicit() {
-        val project = Project("kotlinProject", "3.3")
-        project.setupWorkingDir()
-
-        val buildGradle = File(project.projectDir, "build.gradle")
-        val buildGradleContentCopy = buildGradle.readText()
-
-        fun updateBuildGradle(langVersion: String, apiVersion: String) {
-            buildGradle.writeText(
-                    """
-                $buildGradleContentCopy
-
+            buildGradle.appendText(
+                //language=Groovy
+                """
+                
                 compileKotlin {
-                    kotlinOptions {
-                        languageVersion = '$langVersion'
-                        apiVersion = '$apiVersion'
+                    kotlinOptions.freeCompilerArgs = [ "-module-name", "$customModuleName" ]
+                }
+                """.trimIndent()
+            )
+
+            build("build") {
+                assertFileExists(kotlinClassesDir().resolve("META-INF/$customModuleName.kotlin_module"))
+            }
+        }
+    }
+
+    @DisplayName("KT-52239: Changing Kotlin options via deprecated 'dsl.KotlinJvmOptions' interface")
+    @GradleTest
+    fun testKotlinOptionsViaDeprecatedKotlinJvmOptionsDsl(gradleVersion: GradleVersion) {
+        project("kotlinProject", gradleVersion) {
+            val customModuleName = "custom_module_name"
+
+            buildGradle.appendText(
+                //language=Groovy
+                """
+                
+                tasks.withType(org.jetbrains.kotlin.gradle.dsl.KotlinJvmCompile.class).configureEach {
+                    kotlinOptions.moduleName = "$customModuleName"
+                }
+                """.trimIndent()
+            )
+
+            build("assemble") {
+                assertFileExists(kotlinClassesDir().resolve("META-INF/$customModuleName.kotlin_module"))
+            }
+        }
+    }
+
+    @DisplayName("Downgrading Kotlin plugin version")
+    @GradleTest
+    fun testDowngradePluginVersion(gradleVersion: GradleVersion) {
+        project(
+            "kotlinProject",
+            gradleVersion,
+            buildOptions = defaultBuildOptions.copy(incremental = true)
+        ) {
+            build("assemble")
+            build(
+                "clean",
+                "assemble",
+                buildOptions = buildOptions.copy(
+                    kotlinVersion = TestVersions.Kotlin.STABLE_RELEASE
+                )
+            )
+        }
+    }
+
+    @DisplayName("Passing api/language version")
+    @GradleTest
+    fun testLanguageVersionApiVersionExplicit(gradleVersion: GradleVersion) {
+        project(
+            "kotlinProject",
+            gradleVersion,
+            buildOptions = defaultBuildOptions.copy(logLevel = LogLevel.DEBUG)
+        ) {
+            val buildGradleContentCopy = buildGradle.readText()
+
+            fun updateBuildGradle(langVersion: String, apiVersion: String) {
+                buildGradle.writeText(
+                    //language=Groovy
+                    """
+                    $buildGradleContentCopy
+                    
+                    compileKotlin {
+                        kotlinOptions {
+                            languageVersion = '$langVersion'
+                            apiVersion = '$apiVersion'
+                        }
+                    }
+                    """.trimIndent()
+                )
+            }
+
+            assert(buildGradleContentCopy.indexOf("languageVersion") < 0) { "build.gradle should not contain 'languageVersion'" }
+            assert(buildGradleContentCopy.indexOf("apiVersion") < 0) { "build.gradle should not contain 'apiVersion'" }
+
+            // check the arguments are not passed by default (they are inferred by the compiler)
+            build("clean", "compileKotlin") {
+                assertOutputDoesNotContain("-language-version")
+                assertOutputDoesNotContain("-api-version")
+                assertNoBuildWarnings()
+            }
+
+            // check the arguments are always passed if specified explicitly
+            updateBuildGradle("1.6", "1.6")
+            build("clean", "compileKotlin") {
+                assertOutputContains("-language-version 1.6")
+                assertOutputContains("-api-version 1.6")
+            }
+
+            updateBuildGradle("1.7", "1.7")
+            build("clean", "compileKotlin") {
+                assertOutputContains("-language-version 1.7")
+                assertOutputContains("-api-version 1.7")
+            }
+        }
+    }
+
+    @DisplayName("Mixed project with additional sourceset produce outputs in correct dirs")
+    @GradleTest
+    fun testSeparateOutputGradle40(gradleVersion: GradleVersion) {
+        project("kotlinJavaProject", gradleVersion) {
+            build("compileDeployKotlin", "assemble") {
+                // Check that the Kotlin classes are placed under directories following the guideline:
+                assertFileExists(kotlinClassesDir().resolve("demo/KotlinGreetingJoiner.class"))
+                assertFileExists(kotlinClassesDir(sourceSet = "deploy").resolve("demo/ExampleSource.class"))
+
+                // Check that the resulting JAR contains the Kotlin classes, without duplicates:
+                ZipFile(projectPath.resolve("build/libs/$projectName.jar").toFile()).use { jar ->
+                    assertEquals(
+                        1,
+                        jar.entries().asSequence().count { it.name == "demo/KotlinGreetingJoiner.class" }
+                    )
+                }
+
+
+                // Check that the Java output is intact:
+                assertFileInProjectExists("build/classes/java/main/demo/Greeter.class")
+            }
+        }
+    }
+
+    @DisplayName("archivesBaseName is used for module name")
+    @GradleTest
+    fun testArchiveBaseNameForModuleName(gradleVersion: GradleVersion) {
+        project("simpleProject", gradleVersion) {
+            val archivesBaseName = "myArchivesBaseName"
+            buildGradle.appendText("\narchivesBaseName = '$archivesBaseName'")
+
+            // Add top-level members to force generation of the *.kotlin_module files for the two source sets
+            val mainHelloWorldKt = kotlinSourcesDir().resolve("helloWorld.kt")
+            mainHelloWorldKt.appendText("\nfun topLevelFun() = 1")
+            val deployKotlinSrcKt = kotlinSourcesDir(sourceSet = "deploy").resolve("kotlinSrc.kt")
+            deployKotlinSrcKt.appendText("\nfun topLevelFun() = 1")
+
+            build("build", "deployClasses") {
+                // Main source set should have a *.kotlin_module file without '_main'
+                assertFileExists(kotlinClassesDir().resolve("META-INF/$archivesBaseName.kotlin_module"))
+                assertFileExists(kotlinClassesDir(sourceSet = "deploy").resolve("META-INF/${archivesBaseName}_deploy.kotlin_module"))
+            }
+        }
+    }
+
+    @DisplayName("'javaPackagePrefix' change is applied")
+    @GradleTest
+    fun testJavaPackagePrefix(gradleVersion: GradleVersion) {
+        project("javaPackagePrefix", gradleVersion) {
+            build("build") {
+                // Check that the Java source in a non-full-depth package structure was located correctly:
+                checkBytecodeContains(
+                    kotlinClassesDir().resolve("my/pack/name/app/MyApp.class").toFile(),
+                    "my/pack/name/util/JUtil.util"
+                )
+            }
+        }
+    }
+
+    @DisplayName("Should add generated sources from task dependency")
+    @Disabled("Not working as expected")
+    @GradleTest
+    fun testSrcDirTaskDependency(gradleVersion: GradleVersion) {
+        project(
+            "simpleProject",
+            gradleVersion
+        ) {
+            buildGradle.appendText(
+                """
+                
+                def generateTask = tasks.register('generateSources') {
+                    outputs.dir('generated')
+                    doLast {
+                        def file = new File('generated/test/TestClass.java')
+                        file.parentFile.mkdirs()
+                        file.text = ""${'"'}
+                            package test;
+                
+                            public class TestClass { }
+                        ""${'"'}
                     }
                 }
-            """.trimIndent())
+                sourceSets.main.java.srcDir(generateTask)
+                """.trimIndent()
+            )
+            kotlinSourcesDir().resolve("helloWorld.kt").appendText(
+                """
+                
+                fun usageOfGeneratedSource() = test.TestClass()
+                """.trimIndent()
+            )
+
+            build("build")
         }
+    }
 
-        assert(buildGradleContentCopy.indexOf("languageVersion") < 0) { "build.gradle should not contain 'languageVersion'" }
-        assert(buildGradleContentCopy.indexOf("apiVersion") < 0) { "build.gradle should not contain 'apiVersion'" }
+    @DisplayName("Sources jar include Kotlin files")
+    @GradleTest
+    fun testSourceJar(gradleVersion: GradleVersion) {
+        project("simpleProject", gradleVersion) {
+            val additionalSrcDir = "src/additional/kotlin/"
 
-        // check the arguments are not passed by default (they are inferred by the compiler)
-        project.build("clean", "compileKotlin") {
-            assertSuccessful()
-            assertNotContains("-language-version")
-            assertNotContains("-api-version")
-            assertNoWarnings()
+            with(projectPath.resolve(additionalSrcDir)) {
+                createDirectories()
+                resolve("additionalSource.kt").writeText("fun hello() = 123")
+            }
+
+            buildGradle.appendText(
+                """
+                
+                task sourcesJar(type: Jar) {
+                    from sourceSets.main.allSource
+                    classifier 'source'
+                    duplicatesStrategy = 'fail' // fail in case of Java source duplication, see KT-17564
+                }
+
+                sourceSets.main.kotlin.srcDir('$additionalSrcDir') // test that additional srcDir is included
+                """.trimIndent()
+            )
+
+            build("sourcesJar") {
+                ZipFile(projectPath.resolve("build/libs/simpleProject-source.jar").toFile()).use {
+                    assertNotNull(it.getEntry("additionalSource.kt"))
+                }
+            }
         }
+    }
 
-        // check the arguments are always passed if specified explicitly
-        updateBuildGradle("1.0", "1.0")
-        project.build("clean", "compileKotlin") {
-            assertSuccessful()
-            assertContains("-language-version 1.0")
-            assertContains("-api-version 1.0")
+    @DisplayName("Handling special characters in Kotlin module name")
+    @GradleTest
+    fun testModuleNameFiltering(gradleVersion: GradleVersion) {
+        project("typeAlias", gradleVersion) { // Use a Project with a top-level typealias
+            buildGradle.appendText(
+                """
+                                    
+                archivesBaseName = 'a/really\\trick\n\rmodule\tname'
+                
+                tasks.withType(Jar.class).configureEach {
+                    archiveBaseName.set('typeAlias')
+                }
+                """.trimIndent()
+            )
+
+            build("classes") {
+                val metaInfDir = kotlinClassesDir().resolve("META-INF").toFile()
+                assertNotNull(
+                    metaInfDir.listFiles()?.singleOrNull {
+                        it.name.endsWith(".kotlin_module")
+                    }
+                )
+            }
         }
+    }
 
-        updateBuildGradle("1.1", "1.1")
-        project.build("clean", "compileKotlin") {
-            assertSuccessful()
-            assertContains("-language-version 1.1")
-            assertContains("-api-version 1.1")
+    @DisplayName("Plugin from buildSrc dependencies is available")
+    @GradleTest
+    fun testApplyPluginFromBuildSrc(gradleVersion: GradleVersion) {
+        project("kotlinProjectWithBuildSrc", gradleVersion) {
+            settingsGradle.writeText(
+                //language=Groovy
+                """
+                pluginManagement {
+                    repositories {
+                        mavenLocal()
+                        gradlePluginPortal()
+                    }
+                    
+                    plugins {
+                        id "org.jetbrains.kotlin.test.fixes.android" version "${'$'}test_fixes_version"
+                    }
+                }
+                """.trimIndent()
+            )
+            build("build")
+        }
+    }
+
+    @DisplayName("KGP dependencies in buildSrc module")
+    @GradleTest
+    fun testKotlinPluginDependenciesInBuildSrc(gradleVersion: GradleVersion) {
+        project("kotlinPluginDepsInBuildSrc", gradleVersion) {
+            build("build") {
+                assertOutputContains("Hi from BuildSrc")
+            }
+        }
+    }
+
+    @DisplayName("Test sources should be able to access internal methods or properties")
+    @GradleTest
+    fun testInternalTest(gradleVersion: GradleVersion) {
+        project("internalTest", gradleVersion) {
+            build("build") {
+                assertTasksExecuted(":compileKotlin", ":compileTestKotlin")
+            }
+        }
+    }
+
+    @DisplayName("KT-35341: symlinked build dir")
+    @DisabledOnOs(OS.WINDOWS, disabledReason = "Windows requires SeSymbolicLink privilege and we can't grant it")
+    @GradleTest
+    fun symlinkedBuildDir(
+        gradleVersion: GradleVersion,
+        @TempDir tempDir: Path
+    ) {
+        project("internalTest", gradleVersion) {
+            val externalBuildDir = tempDir.resolve("externalBuild")
+            externalBuildDir.createSymbolicLinkPointingTo(projectPath.resolve("build"))
+
+            build("build") {
+                assertTasksExecuted(":compileKotlin", ":compileTestKotlin")
+            }
+        }
+    }
+
+    @DisplayName("'java-library' plugin compatibility")
+    @GradleTest
+    fun testJavaLibraryCompatibility(gradleVersion: GradleVersion) {
+        project("javaLibraryProject", gradleVersion) {
+            val compileKotlinTasks = arrayOf(":libA:compileKotlin", ":libB:compileKotlin", ":app:compileKotlin")
+            build("build") {
+                assertTasksExecuted(*compileKotlinTasks)
+                assertOutputDoesNotContain("Could not register Kotlin output")
+            }
+
+            // Modify a library source and its usage and re-build the project:
+            listOf(
+                subProject("libA").kotlinSourcesDir().resolve("HelloA.kt"),
+                subProject("libB").kotlinSourcesDir().resolve("HelloB.kt"),
+                subProject("app").kotlinSourcesDir().resolve("App.kt")
+            ).forEach { sourceFile ->
+                sourceFile.modify {
+                    it.replace("helloA", "helloA1")
+                        .replace("helloB", "helloB1")
+                }
+            }
+
+            build("build") {
+                assertOutputDoesNotContain("Could not register Kotlin output")
+                assertTasksExecuted(*compileKotlinTasks)
+            }
+        }
+    }
+
+    @DisplayName("Kotlin source directories are available in Java source directories")
+    @GradleTest
+    fun testKotlinSourceInJavaSourceSet(gradleVersion: GradleVersion) {
+        project("multiplatformProject", gradleVersion) {
+            val srcDirPrefix = "srcDir: "
+
+            buildGradle.appendText(
+                """
+                
+                subprojects { project ->
+                    project.afterEvaluate {
+                        project.sourceSets.each { sourceSet ->
+                            sourceSet.allJava.srcDirs.each { srcDir ->
+                                println "$srcDirPrefix" + srcDir.canonicalPath
+                            }
+                        }
+                    }
+                }
+                """.trimIndent()
+            )
+            val srcDirRegex = "$srcDirPrefix(.*)".toRegex()
+
+            build("help") {
+                val reportedSrcDirs = srcDirRegex.findAll(output).map { it.groupValues[1] }.toSet()
+
+                val expectedKotlinDirs = listOf("lib", "libJvm", "libJs").flatMap { module ->
+                    listOf("main", "test").map { sourceSet ->
+                        projectPath.resolve("$module/src/$sourceSet/kotlin").toFile().absolutePath
+                    }
+                }
+
+                expectedKotlinDirs.forEach { assertTrue(it in reportedSrcDirs, "$it should be included into the Java source sets") }
+            }
+        }
+    }
+
+    @DisplayName("Default Kotlin version is not affected by transitive dependencies")
+    @GradleTest
+    fun testDefaultKotlinVersionIsNotAffectedByTransitiveDependencies(gradleVersion: GradleVersion) {
+        project("simpleProject", gradleVersion) {
+            // Add a dependency with an explicit lower Kotlin version that has a kotlin-stdlib transitive dependency:
+            buildGradle.appendText("\ndependencies { implementation 'org.jetbrains.kotlin:kotlin-reflect:1.5.32' }")
+            testResolveAllConfigurations { unresolvedConfigurations, buildResult ->
+                assertTrue("Unresolved configurations: $unresolvedConfigurations") { unresolvedConfigurations.isEmpty() }
+                buildResult.assertOutputContains(">> :compileClasspath --> kotlin-reflect-1.5.32.jar")
+                // Check that the default newer Kotlin version still wins for 'kotlin-stdlib':
+                buildResult.assertOutputContains(
+                    ">> :compileClasspath --> kotlin-stdlib-${buildOptions.kotlinVersion}.jar"
+                )
+            }
+        }
+    }
+
+    @DisplayName("KT-29971: concurrent modification exception on task execution")
+    @GradleTest
+    fun concurrentModificationException(gradleVersion: GradleVersion) {
+        project("kt-29971", gradleVersion) {
+            build("jvm-app:build") {
+                assertTasksExecuted(":jvm-app:compileKotlin")
+            }
+        }
+    }
+
+    @DisplayName("New extensions models are working as expected")
+    @GradleTest
+    fun testNewModelInOldJvmPlugin(gradleVersion: GradleVersion) {
+        project(
+            "new-model-in-old-plugin",
+            gradleVersion
+        ) {
+            build(
+                "publish",
+                "check",
+                "runBenchmark"
+            ) {
+                assertTasksExecuted(
+                    ":compileKotlin",
+                    ":compileTestKotlin",
+                    ":compileBenchmarkKotlin",
+                    ":test",
+                    ":runBenchmark"
+                )
+
+                // Find the benchmark output:
+                assertOutputContains("f ran at the speed of light")
+
+                val moduleDir = projectPath.resolve("build/repo/com/example/new-model/1.0/")
+
+                val publishedJar = moduleDir.resolve("new-model-1.0.jar")
+                ZipFile(publishedJar.toFile()).use { zip ->
+                    val entries = zip.entries().asSequence().map { it.name }
+                    assertTrue { "com/example/A.class" in entries }
+                }
+
+                val publishedPom = moduleDir.resolve("new-model-1.0.pom")
+                val kotlinVersion = buildOptions.kotlinVersion
+                val pomText = publishedPom.readText().replace(Regex("\\s+"), "")
+                assertTrue { "kotlin-gradle-plugin-api</artifactId><version>$kotlinVersion</version><scope>compile</scope>" in pomText }
+                assertTrue { "kotlin-stdlib-jdk8</artifactId><version>$kotlinVersion</version><scope>runtime</scope>" in pomText }
+
+                assertFileExists(moduleDir.resolve("new-model-1.0-sources.jar"))
+            }
+        }
+    }
+
+    @DisplayName("User-defined attributes")
+    @GradleTest
+    fun testUserDefinedAttributesInSinglePlatformProject(gradleVersion: GradleVersion) {
+        project("multiprojectWithDependency", gradleVersion) {
+            subProject("projA").buildGradle.appendText(
+                """
+                
+                def targetAttribute = Attribute.of("com.example.target", String)
+                def compilationAttribute = Attribute.of("com.example.compilation", String)
+                kotlin.target.attributes.attribute(targetAttribute, "foo")
+                kotlin.target.compilations["main"].attributes.attribute(compilationAttribute, "foo")
+                """.trimIndent()
+            )
+            subProject("projB").buildGradle.appendText(
+                """
+                
+                def targetAttribute = Attribute.of("com.example.target", String)
+                def compilationAttribute = Attribute.of("com.example.compilation", String)
+                kotlin.target.attributes.attribute(targetAttribute, "foo")
+                kotlin.target.compilations["main"].attributes.attribute(compilationAttribute, "foo")
+                """.trimIndent()
+            )
+
+            build(":projB:compileKotlin")
+
+            // Break dependency resolution by providing incompatible custom attributes in the target:
+            subProject("projB").buildGradle.appendText("\nkotlin.target.attributes.attribute(targetAttribute, \"bar\")")
+            buildAndFail(":projB:compileKotlin") {
+                when {
+                    gradleVersion < GradleVersion.version("6.8.4") -> {
+                        assertOutputContains(
+                            "No matching variant of project :projA was found. The consumer was configured to find an API of a library " +
+                                    "compatible with Java 8, preferably in the form of class files, " +
+                                    "and its dependencies declared externally, " +
+                                    "as well as attribute 'org.jetbrains.kotlin.platform.type' with value 'jvm', " +
+                                    "attribute 'com.example.compilation' with value 'foo', " +
+                                    "attribute 'com.example.target' with value 'bar' but:"
+                        )
+                    }
+                    else -> {
+                        assertOutputContains(
+                            "No matching variant of project :projA was found. The consumer was configured to find an API of a library " +
+                                    "compatible with Java 8, preferably in the form of class files, " +
+                                    "preferably optimized for standard JVMs, and its dependencies declared externally, " +
+                                    "as well as attribute 'org.jetbrains.kotlin.platform.type' with value 'jvm', " +
+                                    "attribute 'com.example.compilation' with value 'foo', " +
+                                    "attribute 'com.example.target' with value 'bar' but:"
+                        )
+                    }
+                }
+            }
+
+            // And using the compilation attributes (fix the target attributes first):
+            subProject("projB").buildGradle.appendText(
+                """
+                
+                kotlin.target.attributes.attribute(targetAttribute, "foo")
+                kotlin.target.compilations["main"].attributes.attribute(compilationAttribute, "bar")
+                """.trimIndent()
+            )
+            buildAndFail(":projB:compileKotlin") {
+                when {
+                    gradleVersion < GradleVersion.version("6.8.4") -> {
+                        assertOutputContains(
+                            "No matching variant of project :projA was found. The consumer was configured to find an API of a library " +
+                                    "compatible with Java 8, preferably in the form of class files, and its dependencies declared externally, " +
+                                    "as well as attribute 'org.jetbrains.kotlin.platform.type' with value 'jvm', " +
+                                    "attribute 'com.example.compilation' with value 'bar', " +
+                                    "attribute 'com.example.target' with value 'foo' but:"
+                        )
+                    }
+                    else -> {
+                        assertOutputContains(
+                            "No matching variant of project :projA was found. The consumer was configured to find an API of a library " +
+                                    "compatible with Java 8, preferably in the form of class files, preferably optimized for standard JVMs, " +
+                                    "and its dependencies declared externally, " +
+                                    "as well as attribute 'org.jetbrains.kotlin.platform.type' with value 'jvm', " +
+                                    "attribute 'com.example.compilation' with value 'bar', " +
+                                    "attribute 'com.example.target' with value 'foo' but:"
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    @DisplayName("Load compiler-embeddable after other plugin artifacts")
+    @GradleTest
+    fun testLoadCompilerEmbeddableAfterOtherKotlinArtifacts(gradleVersion: GradleVersion) {
+        project("simpleProjectClasspath", gradleVersion) {
+            val buildscriptClasspathPrefix = "buildscript-classpath = "
+            buildGradle.appendText(
+                """
+                
+                println "$buildscriptClasspathPrefix" + Arrays.toString(buildscript.classLoader.getURLs())
+                """.trimIndent()
+            )
+
+            // get the classpath, then reorder it so that kotlin-compiler-embeddable is loaded after all other JARs
+            lateinit var classpath: List<String>
+
+            build("help") {
+                val classpathLine = output.lines().single { buildscriptClasspathPrefix in it }
+                classpath = classpathLine
+                    .substringAfter(buildscriptClasspathPrefix)
+                    .removeSurrounding("[", "]")
+                    .split(", ")
+            }
+
+            buildGradle.modify {
+                val reorderedClasspath = run {
+                    val (kotlinCompilerEmbeddable, others) = classpath.partition { "kotlin-compiler-embeddable" in it }
+                    others + kotlinCompilerEmbeddable
+                }
+                val newClasspathString = "classpath files(\n" + reorderedClasspath.joinToString(",\n") { "'$it'" } + "\n)"
+                it.checkedReplace("classpath \"org.jetbrains.kotlin:kotlin-gradle-plugin:${'$'}kotlin_version\"", newClasspathString)
+            }
+
+            build("compileKotlin")
+        }
+    }
+
+    /** Regression test for KT-45787. **/
+    @DisplayName("KT-45787: no Gradle deprecation on adding associated dependencies")
+    @GradleTest
+    fun testNoDeprecationOnAssociatedDep(gradleVersion: GradleVersion) {
+        project(
+            "associatedDependencies",
+            gradleVersion,
+            buildOptions = defaultBuildOptions.copy(warningMode = WarningMode.Fail)
+        ) {
+            build("tasks")
+        }
+    }
+
+    @DisplayName("KT-51913: KGP should not add attributes to 'legacy' configurations")
+    @GradleTest
+    fun noAttributesLegacyConfigurations(gradleVersion: GradleVersion) {
+        project(
+            "legacyConfigurationConsumer",
+            gradleVersion
+        ) {
+            build(":consumer:aggregate")
         }
     }
 }

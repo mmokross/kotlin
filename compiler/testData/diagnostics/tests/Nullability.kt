@@ -1,3 +1,5 @@
+// FULL_JDK
+
 fun test() {
   val a : Int? = 0
   if (a != null) {
@@ -143,10 +145,10 @@ fun test() {
   <!DEBUG_INFO_CONSTANT!>out<!>?.println();
 
   val out2 : java.io.PrintStream? = null
-  
+
   while (out2 == null) {
     <!DEBUG_INFO_CONSTANT!>out2<!>?.println();
-    <!DEBUG_INFO_CONSTANT!>out2<!><!UNSAFE_CALL!>.<!>println();
+    out2<!UNSAFE_CALL!>.<!>println();
   }
   <!DEBUG_INFO_SMARTCAST!>out2<!>.println()
 

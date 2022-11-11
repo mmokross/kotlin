@@ -28,9 +28,9 @@ fun <T> test(x: T) {
     <!REIFIED_TYPE_FORBIDDEN_SUBSTITUTION!>baz<!>(1, null, ::foo)
     <!REIFIED_TYPE_FORBIDDEN_SUBSTITUTION, REIFIED_TYPE_FORBIDDEN_SUBSTITUTION!>baz<!>(null, null, ::foo)
 
-    val s3: Pair<Int, String?> = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar(null, null, ::<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>)<!>
-    val s4: Pair<Int?, String> = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar(null, null, ::<!TYPE_INFERENCE_NO_INFORMATION_FOR_PARAMETER!>foo<!>)<!>
+    val s3: Pair<Int, String?> = <!TYPE_MISMATCH!>bar(null, null, ::foo)<!>
+    val s4: Pair<Int?, String> = <!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>bar(null, null, ::<!IMPLICIT_NOTHING_TYPE_ARGUMENT_IN_RETURN_POSITION!>foo<!>)<!>
 
-    val s5: Pair<Int, String> = <!TYPE_INFERENCE_EXPECTED_TYPE_MISMATCH!>bar(1, "", ::foo)<!>
+    val s5: Pair<Int, String> = <!TYPE_MISMATCH, TYPE_MISMATCH!>bar(1, "", ::foo)<!>
     val (a1: Int, b1: String) = <!COMPONENT_FUNCTION_RETURN_TYPE_MISMATCH!>bar(1, "", ::foo)<!>
 }

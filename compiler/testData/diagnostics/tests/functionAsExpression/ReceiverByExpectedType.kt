@@ -1,2 +1,2 @@
-fun foo(<!UNUSED_PARAMETER!>f<!>: String.() -> Int) {}
-val test = foo(<!TYPE_MISMATCH(String.\(\) -> Int; \(\) -> [ERROR : Error function type])!>fun () = <!UNRESOLVED_REFERENCE!>length<!><!>)
+fun foo(f: String.() -> Int) {}
+val test = foo(<!TYPE_MISMATCH, TYPE_MISMATCH, TYPE_MISMATCH!>fun <!EXPECTED_PARAMETERS_NUMBER_MISMATCH!>()<!> = <!UNRESOLVED_REFERENCE!>length<!><!>)

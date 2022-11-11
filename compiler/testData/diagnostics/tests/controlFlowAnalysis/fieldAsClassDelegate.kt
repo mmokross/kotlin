@@ -1,4 +1,5 @@
 // See KT-15566
+// NI_EXPECTED_FILE
 
 import DefaultHttpClient.client
 

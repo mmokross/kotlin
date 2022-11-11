@@ -1,3 +1,4 @@
+// WITH_STDLIB
 public class ClassWithProperties {
 
     public val publicVal: Int = 1

@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 public fun test() {
 
     class Z {
@@ -6,8 +7,8 @@ public fun test() {
         }
     }
 
-    <!NOT_YET_SUPPORTED_IN_INLINE!>inline fun localFun2() {
+    <!NOT_YET_SUPPORTED_IN_INLINE!>inline<!> fun localFun2() {
         Z().localFun()
-    }<!>
+    }
 
 }

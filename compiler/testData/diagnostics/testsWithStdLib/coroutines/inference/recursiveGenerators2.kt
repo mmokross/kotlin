@@ -1,4 +1,11 @@
+// FIR_IDENTICAL
+// !OPT_IN: kotlin.RequiresOptIn
 // !DIAGNOSTICS: -UNUSED_EXPRESSION -UNUSED_PARAMETER -UNUSED_VARIABLE
+// NI_EXPECTED_FILE
+
+@file:OptIn(ExperimentalTypeInference::class)
+
+import kotlin.experimental.ExperimentalTypeInference
 
 class GenericController<T> {
     suspend fun yield(t: T) {}
@@ -10,7 +17,7 @@ suspend fun <S> GenericController<List<S>>.yieldGenerate(g: suspend GenericContr
 
 val test1 = generate {
     // TODO: KT-15185
-    <!TYPE_MISMATCH, TYPE_INFERENCE_PARAMETER_CONSTRAINT_ERROR!>yieldGenerate<!> {
+    yieldGenerate {
         yield(4)
     }
 }

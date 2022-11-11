@@ -1,3 +1,4 @@
+// WITH_STDLIB
 // FILE: Part1.kt
 class A {
     fun a() : String {

@@ -16,13 +16,20 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.ir.IrElementBase
+import org.jetbrains.kotlin.ir.declarations.IrFactory
+import org.jetbrains.kotlin.ir.declarations.impl.IrFactoryImpl
 import org.jetbrains.kotlin.ir.expressions.IrExpression
 import org.jetbrains.kotlin.ir.expressions.IrExpressionBody
-import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
 
-class IrExpressionBodyImpl(startOffset: Int, endOffset: Int) : IrElementBase(startOffset, endOffset), IrExpressionBody {
+class IrExpressionBodyImpl(
+    override val startOffset: Int,
+    override val endOffset: Int,
+    initializer: (IrExpressionBody.() -> Unit)? = null
+) : IrExpressionBody() {
+    init {
+        initializer?.invoke(this)
+    }
+
     constructor(startOffset: Int, endOffset: Int, expression: IrExpression) : this(startOffset, endOffset) {
         this.expression = expression
     }
@@ -31,14 +38,6 @@ class IrExpressionBodyImpl(startOffset: Int, endOffset: Int) : IrElementBase(sta
 
     override lateinit var expression: IrExpression
 
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R =
-            visitor.visitExpressionBody(this, data)
-
-    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        expression.accept(visitor, data)
-    }
-
-    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        expression = expression.transform(transformer, data)
-    }
+    override val factory: IrFactory
+        get() = IrFactoryImpl
 }

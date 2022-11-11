@@ -1,46 +1,68 @@
-// !LANGUAGE: +MultiPlatformProjects
+// !DIAGNOSTICS: -UNUSED_PARAMETER
 // MODULE: m1-common
 // FILE: common.kt
+import kotlin.reflect.KProperty
 
-header class OuterClass {
-    header class NestedClass {
-        header class DeepNested {
-            header class Another
+fun <T> lazy(initializer: () -> T): Lazy<T> = <!UNRESOLVED_REFERENCE!>TODO<!>()
+interface Lazy<out T> {
+    operator fun getValue(thisRef: Any?, property: KProperty<*>): T = <!UNRESOLVED_REFERENCE!>TODO<!>()
+}
+
+expect class OuterClass {
+    class NestedClass {
+        class DeepNested {
+            class Another {
+                fun f(s: String)
+                val p: Int
+                val c: Int = <!EXPECTED_PROPERTY_INITIALIZER, EXPECTED_PROPERTY_INITIALIZER{JVM}!>1<!>
+                val a: Int <!EXPECTED_DELEGATED_PROPERTY, EXPECTED_DELEGATED_PROPERTY{JVM}!>by lazy { 1 }<!>
+            }
         }
     }
 
-    header inner class InnerClass
+    inner class InnerClass {
+        fun f(x: Int)
+        val p: String
+    }
 
-    header companion object
+    companion object
 }
 
-header class OuterClassWithNamedCompanion {
-    header companion object Factory
+expect class OuterClassWithNamedCompanion {
+    companion object Factory
 }
 
-header object OuterObject {
-    header object NestedObject
+expect object OuterObject {
+    object NestedObject
 }
 
-// MODULE: m2-jvm(m1-common)
+// MODULE: m2-jvm()()(m1-common)
 // FILE: jvm.kt
 
-impl class OuterClass {
-    impl class NestedClass {
-        impl class DeepNested {
-            impl class Another
+actual class OuterClass {
+    actual class NestedClass {
+        actual class DeepNested {
+            actual class Another {
+                actual fun f(s: String) {}
+                actual val p: Int = 42
+                actual val c: Int = 2
+                actual val a: Int = 3
+            }
         }
     }
 
-    impl inner class InnerClass
+    actual inner class InnerClass {
+        actual fun f(x: Int) {}
+        actual val p: String = ""
+    }
 
-    impl companion object
+    actual companion object
 }
 
-impl class OuterClassWithNamedCompanion {
-    impl companion object Factory
+actual class OuterClassWithNamedCompanion {
+    actual companion object Factory
 }
 
-impl object OuterObject {
-    impl object NestedObject
+actual object OuterObject {
+    actual object NestedObject
 }

@@ -1,28 +1,19 @@
 /*
- * Copyright 2010-2016 JetBrains s.r.o.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2010-2021 JetBrains s.r.o. and Kotlin Programming Language contributors.
+ * Use of this source code is governed by the Apache 2.0 license that can be found in the license/LICENSE.txt file.
  */
 
 package org.jetbrains.kotlin.ir.expressions
 
-abstract class IrStatementOriginImpl(val debugName: String): IrStatementOrigin {
+import org.jetbrains.kotlin.ir.declarations.IrDeclarationOriginImpl
+
+abstract class IrStatementOriginImpl(val debugName: String) : IrStatementOrigin {
     override fun toString(): String = debugName
 }
 
 interface IrStatementOrigin {
     object SAFE_CALL : IrStatementOriginImpl("SAFE_CALL")
-    
+
     object UMINUS : IrStatementOriginImpl("UMINUS")
     object UPLUS : IrStatementOriginImpl("UPLUS")
     object EXCL : IrStatementOriginImpl("EXCL")
@@ -51,6 +42,7 @@ interface IrStatementOrigin {
     object DIV : IrStatementOriginImpl("DIV")
     object PERC : IrStatementOriginImpl("PERC")
     object RANGE : IrStatementOriginImpl("RANGE")
+    object RANGE_UNTIL : IrStatementOriginImpl("RANGE_UNTIL")
 
     object INVOKE : IrStatementOriginImpl("INVOKE")
     object VARIABLE_AS_FUNCTION : IrStatementOriginImpl("VARIABLE_AS_FUNCTION")
@@ -70,7 +62,7 @@ interface IrStatementOrigin {
 
     object ARGUMENTS_REORDERING_FOR_CALL : IrStatementOriginImpl("ARGUMENTS_REORDERING_FOR_CALL")
     object DESTRUCTURING_DECLARATION : IrStatementOriginImpl("DESTRUCTURING_DECLARATION")
-    
+
     object GET_PROPERTY : IrStatementOriginImpl("GET_PROPERTY")
     object GET_LOCAL_PROPERTY : IrStatementOriginImpl("GET_LOCAL_PROPERTY")
 
@@ -86,32 +78,52 @@ interface IrStatementOrigin {
     object FOR_LOOP_NEXT : IrStatementOriginImpl("FOR_LOOP_NEXT")
 
     object LAMBDA : IrStatementOriginImpl("LAMBDA")
+    object DEFAULT_VALUE : IrStatementOriginImpl("DEFAULT_VALUE")
     object ANONYMOUS_FUNCTION : IrStatementOriginImpl("ANONYMOUS_FUNCTION")
     object OBJECT_LITERAL : IrStatementOriginImpl("OBJECT_LITERAL")
+    object ADAPTED_FUNCTION_REFERENCE : IrStatementOriginImpl("ADAPTED_FUNCTION_REFERENCE")
+    object SUSPEND_CONVERSION : IrStatementOriginImpl("SUSPEND_CONVERSION")
+    object FUN_INTERFACE_CONSTRUCTOR_REFERENCE : IrStatementOriginImpl("FUN_INTERFACE_CONSTRUCTOR_REFERENCE")
 
     object INITIALIZE_PROPERTY_FROM_PARAMETER : IrStatementOriginImpl("INITIALIZE_PROPERTY_FROM_PARAMETER")
+    object INITIALIZE_FIELD : IrStatementOriginImpl("INITIALIZE_FIELD")
 
     object PROPERTY_REFERENCE_FOR_DELEGATE : IrStatementOriginImpl("PROPERTY_REFERENCE_FOR_DELEGATE")
+
+    object BRIDGE_DELEGATION : IrStatementOriginImpl("BRIDGE_DELEGATION")
+
+    object SYNTHETIC_NOT_AUTOBOXED_CHECK : IrStatementOriginImpl("SYNTHETIC_NOT_AUTOBOXED_CHECK")
 
     data class COMPONENT_N private constructor(val index: Int) : IrStatementOriginImpl("COMPONENT_$index") {
         companion object {
             private val precreatedComponents = Array(32) { i -> COMPONENT_N(i + 1) }
 
             fun withIndex(index: Int) =
-                    if (index < precreatedComponents.size)
-                        precreatedComponents[index - 1]
-                    else
-                        COMPONENT_N(index)
+                if (index < precreatedComponents.size)
+                    precreatedComponents[index - 1]
+                else
+                    COMPONENT_N(index)
         }
     }
 
 }
 
 fun IrStatementOrigin.isAssignmentOperatorWithResult() =
-        when (this) {
-            IrStatementOrigin.PREFIX_INCR, IrStatementOrigin.PREFIX_DECR,
-            IrStatementOrigin.POSTFIX_INCR, IrStatementOrigin.POSTFIX_DECR ->
-                true
-            else ->
-                false
-        }
+    when (this) {
+        IrStatementOrigin.PREFIX_INCR, IrStatementOrigin.PREFIX_DECR,
+        IrStatementOrigin.POSTFIX_INCR, IrStatementOrigin.POSTFIX_DECR ->
+            true
+        else ->
+            false
+    }
+
+fun IrStatementOrigin.isAssignmentOperator(): Boolean =
+    when (this) {
+        IrStatementOrigin.EQ,
+        IrStatementOrigin.PLUSEQ,
+        IrStatementOrigin.MINUSEQ,
+        IrStatementOrigin.MULTEQ,
+        IrStatementOrigin.DIVEQ,
+        IrStatementOrigin.PERCEQ -> true
+        else -> isAssignmentOperatorWithResult()
+    }

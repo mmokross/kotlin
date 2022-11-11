@@ -1,3 +1,4 @@
+// FIR_IDENTICAL
 import kotlin.reflect.KProperty
 
 annotation class Ann
@@ -11,7 +12,7 @@ class CustomDelegate {
 class SomeClass {
 
     <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
-    constructor(<!UNUSED_PARAMETER!>s<!>: String)
+    constructor(s: String)
 
     @property:Ann
     protected val p1: String = ""
@@ -33,7 +34,7 @@ class SomeClass {
     <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
     fun anotherFun() {
         <!WRONG_ANNOTATION_TARGET_WITH_USE_SITE_TARGET!>@property:Ann<!>
-        val <!UNUSED_VARIABLE!>localVariable<!> = 5
+        val localVariable = 5
     }
 
 }

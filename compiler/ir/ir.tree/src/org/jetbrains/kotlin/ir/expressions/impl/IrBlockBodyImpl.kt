@@ -16,31 +16,25 @@
 
 package org.jetbrains.kotlin.ir.expressions.impl
 
-import org.jetbrains.kotlin.ir.IrElementBase
 import org.jetbrains.kotlin.ir.IrStatement
+import org.jetbrains.kotlin.ir.declarations.IrFactory
+import org.jetbrains.kotlin.ir.declarations.impl.IrFactoryImpl
 import org.jetbrains.kotlin.ir.expressions.IrBlockBody
-import org.jetbrains.kotlin.ir.visitors.IrElementTransformer
-import org.jetbrains.kotlin.ir.visitors.IrElementVisitor
-import java.util.*
 
-class IrBlockBodyImpl(startOffset: Int, endOffset: Int) : IrElementBase(startOffset, endOffset), IrBlockBody {
+class IrBlockBodyImpl(
+    override val startOffset: Int,
+    override val endOffset: Int
+) : IrBlockBody() {
     constructor(startOffset: Int, endOffset: Int, statements: List<IrStatement>) : this(startOffset, endOffset) {
         this.statements.addAll(statements)
     }
 
+    constructor(startOffset: Int, endOffset: Int, initializer: IrBlockBody.() -> Unit) : this(startOffset, endOffset) {
+        this.initializer()
+    }
+
     override val statements: MutableList<IrStatement> = ArrayList()
 
-    override fun <R, D> accept(visitor: IrElementVisitor<R, D>, data: D): R {
-        return visitor.visitBlockBody(this, data)
-    }
-
-    override fun <D> acceptChildren(visitor: IrElementVisitor<Unit, D>, data: D) {
-        statements.forEach { it.accept(visitor, data) }
-    }
-
-    override fun <D> transformChildren(transformer: IrElementTransformer<D>, data: D) {
-        statements.forEachIndexed { i, irStatement ->
-            statements[i] = irStatement.transform(transformer, data)
-        }
-    }
+    override val factory: IrFactory
+        get() = IrFactoryImpl
 }

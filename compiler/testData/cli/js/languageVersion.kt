@@ -1,5 +1,4 @@
 package test
 
-sealed class Base
+sealed interface Polygon
 
-class Derived : Base()

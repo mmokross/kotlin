@@ -16,7 +16,6 @@
 
 package org.jetbrains.kotlin.types;
 
-import com.google.common.collect.Maps;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
@@ -49,7 +48,8 @@ import org.jetbrains.kotlin.tests.di.InjectionKt;
 
 import java.io.File;
 import java.io.IOException;
-import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 @SuppressWarnings("unchecked")
@@ -91,7 +91,7 @@ public class TypeSubstitutorTest extends KotlinTestWithEnvironment {
         LocalRedeclarationChecker redeclarationChecker =
                 new ThrowingLocalRedeclarationChecker(new OverloadChecker(TypeSpecificityComparator.NONE.INSTANCE));
         LexicalScope typeParameters = new LexicalScopeImpl(
-                topLevelScope, module, false, null, LexicalScopeKind.SYNTHETIC,
+                topLevelScope, module, false, null, Collections.emptyList(), LexicalScopeKind.SYNTHETIC,
                 redeclarationChecker,
                 handler -> {
                     for (TypeParameterDescriptor parameterDescriptor : contextClass.getTypeConstructor().getParameters()) {
@@ -100,12 +100,11 @@ public class TypeSubstitutorTest extends KotlinTestWithEnvironment {
                     return Unit.INSTANCE;
                 }
         );
-        return new LexicalChainedScope(
-                typeParameters, module, false, null, LexicalScopeKind.SYNTHETIC,
-                Arrays.asList(
-                        contextClass.getDefaultType().getMemberScope(),
-                        module.getBuiltIns().getBuiltInsPackageScope()
-                )
+        return LexicalChainedScope.Companion.create(
+                typeParameters, module, false, null, Collections.emptyList(),
+                LexicalScopeKind.SYNTHETIC,
+                contextClass.getDefaultType().getMemberScope(),
+                module.getBuiltIns().getBuiltInsPackageScope()
         );
     }
 
@@ -127,7 +126,7 @@ public class TypeSubstitutorTest extends KotlinTestWithEnvironment {
     }
 
     private Map<TypeConstructor, TypeProjection> stringsToSubstitutionMap(Pair<String, String>[] substitutionStrs) {
-        Map<TypeConstructor, TypeProjection> map = Maps.newHashMap();
+        Map<TypeConstructor, TypeProjection> map = new HashMap();
         for (Pair<String, String> pair : substitutionStrs) {
             String typeParameterName = pair.first;
             String replacementProjectionString = pair.second;

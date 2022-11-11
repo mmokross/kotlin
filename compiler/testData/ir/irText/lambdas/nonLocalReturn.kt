@@ -1,4 +1,5 @@
-// WITH_RUNTIME
+// FIR_IDENTICAL
+// WITH_STDLIB
 
 fun test0() {
     run {
@@ -15,6 +16,16 @@ fun test1() {
 fun test2() {
     run lambda@{
         return@lambda
+    }
+}
+
+// TODO we don't see 'return@lambda' inside internal lambda when we analyze an external lambda,
+// so type information from NI is actually incorrect, see KT-18392
+fun test3() {
+    run lambda@{
+        run {
+            return@lambda
+        }
     }
 }
 

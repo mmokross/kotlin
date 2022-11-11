@@ -1,4 +1,5 @@
-// EXPECTED_REACHABLE_NODES: 492
+// !LANGUAGE: -ApproximateIntegerLiteralTypesInReceiverPosition
+// EXPECTED_REACHABLE_NODES: 1375
 package foo
 
 fun box(): String {

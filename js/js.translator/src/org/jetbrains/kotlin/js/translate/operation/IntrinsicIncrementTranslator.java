@@ -24,7 +24,7 @@ import org.jetbrains.kotlin.js.translate.callTranslator.CallInfoKt;
 import org.jetbrains.kotlin.js.translate.context.TranslationContext;
 import org.jetbrains.kotlin.js.translate.intrinsic.functions.basic.FunctionIntrinsic;
 import org.jetbrains.kotlin.psi.KtUnaryExpression;
-import org.jetbrains.kotlin.resolve.calls.callUtil.CallUtilKt;
+import org.jetbrains.kotlin.resolve.calls.util.CallUtilKt;
 import org.jetbrains.kotlin.resolve.calls.model.ResolvedCall;
 
 import java.util.Collections;
@@ -41,7 +41,8 @@ public final class IntrinsicIncrementTranslator extends IncrementTranslator {
     @Override
     @NotNull
     protected JsExpression operationExpression(@NotNull TranslationContext context, @NotNull JsExpression receiver) {
-        FunctionIntrinsic intrinsic = context.intrinsics().getFunctionIntrinsic(resolvedCall.getResultingDescriptor());
+        FunctionIntrinsic intrinsic = context.intrinsics().getFunctionIntrinsic(resolvedCall.getResultingDescriptor(), context);
+        assert intrinsic != null;
         CallInfo callInfo = CallInfoKt.getCallInfo(context, resolvedCall, receiver);
         return intrinsic.apply(callInfo, Collections.emptyList(), context);
     }

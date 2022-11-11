@@ -16,75 +16,116 @@
 
 package org.jetbrains.kotlin.jvm.compiler
 
+import com.intellij.openapi.project.Project
+import com.intellij.openapi.util.ModificationTracker
 import com.intellij.openapi.vfs.VirtualFile
 import com.intellij.psi.search.DelegatingGlobalSearchScope
 import com.intellij.psi.search.GlobalSearchScope
-import org.jetbrains.kotlin.analyzer.AnalyzerFacade
-import org.jetbrains.kotlin.analyzer.ModuleContent
-import org.jetbrains.kotlin.analyzer.ModuleInfo
-import org.jetbrains.kotlin.analyzer.ResolverForProject
+import org.jetbrains.kotlin.analyzer.*
 import org.jetbrains.kotlin.builtins.KotlinBuiltIns
+import org.jetbrains.kotlin.builtins.jvm.JvmBuiltIns
 import org.jetbrains.kotlin.cli.jvm.compiler.EnvironmentConfigFiles
 import org.jetbrains.kotlin.cli.jvm.compiler.KotlinCoreEnvironment
 import org.jetbrains.kotlin.config.LanguageFeature
 import org.jetbrains.kotlin.config.LanguageVersionSettings
+import org.jetbrains.kotlin.config.LanguageVersionSettingsImpl
 import org.jetbrains.kotlin.container.get
 import org.jetbrains.kotlin.context.ProjectContext
+import org.jetbrains.kotlin.context.withModule
 import org.jetbrains.kotlin.descriptors.*
+import org.jetbrains.kotlin.descriptors.impl.ModuleDescriptorImpl
 import org.jetbrains.kotlin.incremental.components.NoLookupLocation
+import org.jetbrains.kotlin.load.kotlin.PackagePartProvider
 import org.jetbrains.kotlin.name.FqName
 import org.jetbrains.kotlin.name.Name
-import org.jetbrains.kotlin.platform.JvmBuiltIns
+import org.jetbrains.kotlin.platform.TargetPlatform
+import org.jetbrains.kotlin.platform.jvm.JvmPlatforms
 import org.jetbrains.kotlin.psi.KtFile
-import org.jetbrains.kotlin.resolve.MultiTargetPlatform
+import org.jetbrains.kotlin.resolve.CliSealedClassInheritorsProvider
+import org.jetbrains.kotlin.resolve.CompilerEnvironment
+import org.jetbrains.kotlin.resolve.PlatformDependentAnalyzerServices
 import org.jetbrains.kotlin.resolve.constants.EnumValue
 import org.jetbrains.kotlin.resolve.descriptorUtil.annotationClass
 import org.jetbrains.kotlin.resolve.descriptorUtil.module
-import org.jetbrains.kotlin.resolve.jvm.JvmAnalyzerFacade
 import org.jetbrains.kotlin.resolve.jvm.JvmPlatformParameters
+import org.jetbrains.kotlin.resolve.jvm.JvmResolverForModuleFactory
+import org.jetbrains.kotlin.resolve.jvm.platform.JvmPlatformAnalyzerServices
 import org.jetbrains.kotlin.test.ConfigurationKind
 import org.jetbrains.kotlin.test.KotlinTestUtils
 import org.jetbrains.kotlin.test.TestJdkKind
 import org.jetbrains.kotlin.test.testFramework.KtUsefulTestCase
-import org.jetbrains.kotlin.types.ErrorUtils
+import org.jetbrains.kotlin.types.error.ErrorUtils
 import org.junit.Assert
 import java.io.File
-import java.util.*
 
 class MultiModuleJavaAnalysisCustomTest : KtUsefulTestCase() {
 
     private class TestModule(
-            val _name: String, val kotlinFiles: List<KtFile>, val javaFilesScope: GlobalSearchScope,
-            val _dependencies: TestModule.() -> List<TestModule>
-    ) : ModuleInfo {
+        val project: Project,
+        val _name: String, val kotlinFiles: List<KtFile>, val javaFilesScope: GlobalSearchScope,
+        val _dependencies: TestModule.() -> List<TestModule>
+    ) : TrackableModuleInfo {
+        override fun createModificationTracker(): ModificationTracker = ModificationTracker.NEVER_CHANGED
+
         override fun dependencies() = _dependencies()
         override val name = Name.special("<$_name>")
+
+        override val platform: TargetPlatform
+            get() = JvmPlatforms.unspecifiedJvmPlatform
+
+        override val analyzerServices: PlatformDependentAnalyzerServices
+            get() = JvmPlatformAnalyzerServices
     }
 
     fun testJavaEntitiesBelongToCorrectModule() {
         val moduleDirs = File(PATH_TO_TEST_ROOT_DIR).listFiles { it -> it.isDirectory }!!
         val environment = createEnvironment(moduleDirs)
         val modules = setupModules(environment, moduleDirs)
-        val projectContext = ProjectContext(environment.project)
-        val builtIns = JvmBuiltIns(projectContext.storageManager)
-        val resolverForProject = AnalyzerFacade.setupResolverForProject(
-                "test",
-                projectContext, modules, { JvmAnalyzerFacade },
-                { module -> ModuleContent(module.kotlinFiles, module.javaFilesScope) },
-                JvmPlatformParameters {
-                    javaClass ->
-                    val moduleName = javaClass.name.asString().toLowerCase().first().toString()
-                    modules.first { it._name == moduleName }
-                },
-                builtIns = builtIns,
-                modulePlatforms = { MultiTargetPlatform.Specific("JVM") }
+        val projectContext = ProjectContext(environment.project, "MultiModuleJavaAnalysisTest")
+        val builtIns = JvmBuiltIns(projectContext.storageManager, JvmBuiltIns.Kind.FROM_CLASS_LOADER)
+        val platformParameters = JvmPlatformParameters(
+            packagePartProviderFactory = { PackagePartProvider.Empty },
+            moduleByJavaClass = { javaClass ->
+                val moduleName = javaClass.name.asString().lowercase().first().toString()
+                modules.first { it._name == moduleName }
+            },
+            useBuiltinsProviderForModule = { false }
         )
 
+        val resolverForProject = object : AbstractResolverForProject<TestModule>(
+            "test",
+            projectContext,
+            modules
+        ) {
+            override fun sdkDependency(module: TestModule): TestModule? = null
+
+            override fun modulesContent(module: TestModule): ModuleContent<TestModule> =
+                ModuleContent(module, module.kotlinFiles, module.javaFilesScope)
+
+            override fun builtInsForModule(module: TestModule): KotlinBuiltIns = builtIns
+
+            override fun createResolverForModule(descriptor: ModuleDescriptor, moduleInfo: TestModule): ResolverForModule =
+                JvmResolverForModuleFactory(
+                    platformParameters,
+                    CompilerEnvironment,
+                    JvmPlatforms.defaultJvmPlatform
+                ).createResolverForModule(
+                    descriptor as ModuleDescriptorImpl,
+                    projectContext.withModule(descriptor),
+                    modulesContent(moduleInfo),
+                    this,
+                    LanguageVersionSettingsImpl.DEFAULT,
+                    CliSealedClassInheritorsProvider,
+                    null,
+                )
+        }
+
         builtIns.initialize(
-                resolverForProject.descriptorForModule(resolverForProject.allModules.first()),
-                resolverForProject.resolverForModule(resolverForProject.allModules.first())
-                        .componentProvider.get<LanguageVersionSettings>()
-                        .supportsFeature(LanguageFeature.AdditionalBuiltInsMembers))
+            resolverForProject.descriptorForModule(resolverForProject.allModules.first()),
+            resolverForProject.resolverForModule(resolverForProject.allModules.first())
+                .componentProvider.get<LanguageVersionSettings>()
+                .supportsFeature(LanguageFeature.AdditionalBuiltInsMembers)
+        )
 
         performChecks(resolverForProject, modules)
     }
@@ -108,7 +149,7 @@ class MultiModuleJavaAnalysisCustomTest : KtUsefulTestCase() {
                     return file.parent!!.parent!!.name == name
                 }
             }
-            modules[name] = TestModule(name, kotlinFiles, javaFilesScope) {
+            modules[name] = TestModule(project, name, kotlinFiles, javaFilesScope) {
                 when (this._name) {
                     "a" -> listOf(this)
                     "b" -> listOf(this, modules["a"]!!)
@@ -125,8 +166,8 @@ class MultiModuleJavaAnalysisCustomTest : KtUsefulTestCase() {
             module ->
             val moduleDescriptor = resolverForProject.descriptorForModule(module)
 
-            checkClassInPackage(moduleDescriptor, "test", "Kotlin${module._name.toUpperCase()}")
-            checkClassInPackage(moduleDescriptor, "custom", "${module._name.toUpperCase()}Class")
+            checkClassInPackage(moduleDescriptor, "test", "Kotlin${module._name.uppercase()}")
+            checkClassInPackage(moduleDescriptor, "custom", "${module._name.uppercase()}Class")
         }
     }
 
@@ -169,8 +210,7 @@ class MultiModuleJavaAnalysisCustomTest : KtUsefulTestCase() {
             it.allValueArguments.forEach {
                 val argument = it.value
                 if (argument is EnumValue) {
-                    Assert.assertEquals("Enum entry name should be <module-name>X", "X", argument.value.name.identifier.last().toString())
-                    checkDescriptor(argument.value, callable)
+                    Assert.assertEquals("Enum entry name should be <module-name>X", "X", argument.enumEntryName.identifier.last().toString())
                 }
             }
         }
@@ -190,7 +230,7 @@ class MultiModuleJavaAnalysisCustomTest : KtUsefulTestCase() {
         assert(!ErrorUtils.isError(referencedDescriptor)) { "Error descriptor: $referencedDescriptor" }
 
         val descriptorName = referencedDescriptor.name.asString()
-        val expectedModuleName = "<${descriptorName.toLowerCase().first()}>"
+        val expectedModuleName = "<${descriptorName.lowercase().first()}>"
         val moduleName = referencedDescriptor.module.name.asString()
         Assert.assertEquals(
                 "Java class $descriptorName in $context should be in module $expectedModuleName, but instead was in $moduleName",

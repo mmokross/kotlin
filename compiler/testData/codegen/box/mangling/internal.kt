@@ -1,3 +1,4 @@
+// IGNORE_BACKEND: JS_IR_ES6
 // MODULE: lib
 // FILE: lib.kt
 

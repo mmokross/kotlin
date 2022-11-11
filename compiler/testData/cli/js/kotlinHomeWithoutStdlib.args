@@ -1,0 +1,7 @@
+$TESTDATA_DIR$/simple2js.kt
+-Xlegacy-deprecated-no-warn
+-Xuse-deprecated-legacy-compiler
+-kotlin-home
+$TESTDATA_DIR$
+-output
+$TEMP_DIR$/out.js

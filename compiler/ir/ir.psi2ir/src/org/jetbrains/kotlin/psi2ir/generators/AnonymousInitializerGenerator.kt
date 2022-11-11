@@ -16,30 +16,38 @@
 
 package org.jetbrains.kotlin.psi2ir.generators
 
-import org.jetbrains.kotlin.descriptors.ClassDescriptor
-import org.jetbrains.kotlin.ir.declarations.IrDeclaration
+import org.jetbrains.kotlin.ir.declarations.IrAnonymousInitializer
+import org.jetbrains.kotlin.ir.declarations.IrClass
 import org.jetbrains.kotlin.ir.declarations.IrDeclarationOrigin
-import org.jetbrains.kotlin.ir.expressions.impl.IrBlockBodyImpl
 import org.jetbrains.kotlin.psi.KtAnonymousInitializer
 import org.jetbrains.kotlin.psi.KtBlockExpression
 import org.jetbrains.kotlin.psi.psiUtil.endOffset
-import org.jetbrains.kotlin.psi.psiUtil.startOffset
+import org.jetbrains.kotlin.psi.psiUtil.startOffsetSkippingComments
 
-class AnonymousInitializerGenerator(declarationGenerator: DeclarationGenerator) : DeclarationGeneratorExtension(declarationGenerator) {
-    fun generateAnonymousInitializerDeclaration(ktAnonymousInitializer: KtAnonymousInitializer, classDescriptor: ClassDescriptor): IrDeclaration =
-            context.symbolTable.declareAnonymousInitializer(
-                    ktAnonymousInitializer.startOffset, ktAnonymousInitializer.endOffset, IrDeclarationOrigin.DEFINED, classDescriptor
-            ).buildWithScope { irAnonymousInitializer ->
-                val bodyGenerator = createBodyGenerator(irAnonymousInitializer.symbol)
-                val statementGenerator = bodyGenerator.createStatementGenerator()
-                val ktBody = ktAnonymousInitializer.body!!
-                val irBlockBody = IrBlockBodyImpl(ktBody.startOffset, ktBody.endOffset)
+class AnonymousInitializerGenerator(
+    declarationGenerator: DeclarationGenerator
+) : DeclarationGeneratorExtension(declarationGenerator) {
+
+    fun generateAnonymousInitializerDeclaration(
+        ktAnonymousInitializer: KtAnonymousInitializer,
+        irClass: IrClass
+    ): IrAnonymousInitializer =
+        context.symbolTable.declareAnonymousInitializer(
+            ktAnonymousInitializer.startOffsetSkippingComments, ktAnonymousInitializer.endOffset,
+            IrDeclarationOrigin.DEFINED, irClass.descriptor
+        ).buildWithScope { irAnonymousInitializer ->
+            irAnonymousInitializer.parent = irClass
+            val bodyGenerator = createBodyGenerator(irAnonymousInitializer.symbol)
+            val statementGenerator = bodyGenerator.createStatementGenerator()
+            val ktBody = ktAnonymousInitializer.body!!
+            val irBlockBody = context.irFactory.createBlockBody(ktBody.startOffsetSkippingComments, ktBody.endOffset)
+            if (context.configuration.generateBodies) {
                 if (ktBody is KtBlockExpression) {
                     statementGenerator.generateStatements(ktBody.statements, irBlockBody)
-                }
-                else {
+                } else {
                     irBlockBody.statements.add(statementGenerator.generateStatement(ktBody))
                 }
-                irAnonymousInitializer.body = irBlockBody
             }
+            irAnonymousInitializer.body = irBlockBody
+        }
 }

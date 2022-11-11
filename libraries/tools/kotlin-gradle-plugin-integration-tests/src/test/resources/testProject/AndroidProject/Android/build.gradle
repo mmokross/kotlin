@@ -1,9 +1,12 @@
-apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
+import org.gradle.util.VersionNumber
+
+plugins {
+    id 'com.android.application'
+    id 'org.jetbrains.kotlin.android'
+}
 
 android {
     compileSdkVersion 22
-    buildToolsVersion "25.0.2"
 
     sourceSets {
         main.java.srcDirs += 'src/main/java2'
@@ -14,6 +17,12 @@ android {
     defaultConfig {
         minSdkVersion 7
         targetSdkVersion 22
+    }
+
+    // Needed for older AGP. It can be removed when the lowest supported AGP version is 4.2.0 or newer.
+    compileOptions {
+        sourceCompatibility 1.8
+        targetCompatibility 1.8
     }
 
     flavorDimensions "myFlavor"
@@ -35,6 +44,8 @@ android {
     kotlinOptions {
         noJdk = true
     }
+
+    lintOptions.abortOnError = false
 }
 
 if (VersionNumber.parse(android_tools_version) < VersionNumber.parse("3.0.0-alpha1")) {
@@ -54,11 +65,11 @@ if (VersionNumber.parse(android_tools_version) < VersionNumber.parse("3.0.0-alph
 }
 else {
     dependencies {
-        compile project(":Lib")
+        implementation project(":Lib")
     }
 }
 
 dependencies {
-    compile "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
-    testCompile 'junit:junit:4.12'
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:$kotlin_version"
+    testImplementation'junit:junit:4.13.2'
 }

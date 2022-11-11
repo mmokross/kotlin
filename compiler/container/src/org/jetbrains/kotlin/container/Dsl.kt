@@ -29,6 +29,10 @@ inline fun <reified T : Any> StorageComponentContainer.useImpl() {
     registerSingleton(T::class.java)
 }
 
+inline fun <reified T : Any> StorageComponentContainer.useImplIf(cond: Boolean) {
+    if (cond) useImpl<T>()
+}
+
 inline fun <reified T : Any> ComponentProvider.get(): T {
     return getService(T::class.java)
 }
@@ -39,13 +43,24 @@ fun <T : Any> ComponentProvider.tryGetService(request: Class<T>): T? {
 }
 
 fun <T : Any> ComponentProvider.getService(request: Class<T>): T {
-    return tryGetService(request) ?: throw IllegalArgumentException("Unresolved service: $request")
+    return tryGetService(request) ?: throw UnresolvedServiceException(this, request)
 }
 
 fun StorageComponentContainer.useInstance(instance: Any) {
     registerInstance(instance)
 }
 
+fun StorageComponentContainer.useInstanceIfNotNull(instance: Any?) {
+    if (instance != null) registerInstance(instance)
+}
+
+fun StorageComponentContainer.useClashResolver(clashResolver: PlatformExtensionsClashResolver<*>) {
+    registerClashResolvers(listOf(clashResolver))
+}
+
 inline operator fun <reified T : Any> ComponentProvider.getValue(thisRef: Any?, desc: KProperty<*>): T {
     return getService(T::class.java)
 }
+
+class UnresolvedServiceException(container: ComponentProvider, request: Class<*>) :
+    IllegalArgumentException("Unresolved service: $request in $container")

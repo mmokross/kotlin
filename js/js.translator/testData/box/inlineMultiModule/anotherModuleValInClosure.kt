@@ -1,4 +1,5 @@
-// EXPECTED_REACHABLE_NODES: 496
+// IGNORE_FIR
+// EXPECTED_REACHABLE_NODES: 1286
 // MODULE: lib
 // FILE: lib.kt
 
@@ -18,7 +19,7 @@ public fun log(s: String): String {
 
 import utils.*
 
-// CHECK_CONTAINS_NO_CALLS: test
+// CHECK_CONTAINS_NO_CALLS: test TARGET_BACKENDS=JS
 
 internal fun test(s: String): String = log(s + ";")
 
